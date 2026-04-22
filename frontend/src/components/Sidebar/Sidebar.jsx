@@ -106,7 +106,7 @@ export function Sidebar({ config, setConfig, onAddComponent, onSimulate, loading
             </button>
           </div>
           <p style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginTop: '0.5rem', padding: '0 0.5rem' }}>
-            Use Real gas(BETA) for multi-throat or complex choking cases.
+            Da usare per simulare gas reali sopra i 1000 gradi.
           </p>
         </div>
 
