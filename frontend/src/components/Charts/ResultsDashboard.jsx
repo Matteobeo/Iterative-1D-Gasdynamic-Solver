@@ -105,6 +105,7 @@ export function ResultsDashboard({ results }) {
       <div className={`charts-container ${isStacked ? 'stacked' : ''}`}>
         <div className="chart-wrapper">
           <Plot 
+            key={`mach-${isStacked}`}
             data={machData} 
             layout={{ ...layoutDefaults, title: 'Mach Number [-]', shapes, yaxis: { ...layoutDefaults.yaxis, title: { text: 'Mach [-]', font: { size: 12 } } } }}
             useResizeHandler={true} style={{ width: '100%', height: '100%' }} config={{ responsive: true }}
@@ -112,6 +113,7 @@ export function ResultsDashboard({ results }) {
         </div>
         <div className="chart-wrapper">
           <Plot 
+            key={`pressure-${isStacked}`}
             data={pressureData} 
             layout={{ ...layoutDefaults, title: 'Pressure [Pa]', shapes, yaxis: { ...layoutDefaults.yaxis, title: { text: 'Pressure [Pa]', font: { size: 12 } }, type: 'log', exponentformat: 'e' } }}
             useResizeHandler={true} style={{ width: '100%', height: '100%' }} config={{ responsive: true }}
@@ -119,6 +121,7 @@ export function ResultsDashboard({ results }) {
         </div>
         <div className="chart-wrapper">
           <Plot 
+            key={`temp-${isStacked}`}
             data={tempData} 
             layout={{ ...layoutDefaults, title: 'Temperature [K]', shapes, yaxis: { ...layoutDefaults.yaxis, title: { text: 'Temperature [K]', font: { size: 12 } } } }}
             useResizeHandler={true} style={{ width: '100%', height: '100%' }} config={{ responsive: true }}
@@ -126,6 +129,7 @@ export function ResultsDashboard({ results }) {
         </div>
         <div className="chart-wrapper">
           <Plot 
+            key={`mass-${isStacked}`}
             data={massData} 
             layout={{ ...layoutDefaults, title: 'Mass Flow [kg/s]', shapes, yaxis: { ...layoutDefaults.yaxis, title: { text: 'mdot [kg/s]', font: { size: 12 } } } }}
             useResizeHandler={true} style={{ width: '100%', height: '100%' }} config={{ responsive: true }}
