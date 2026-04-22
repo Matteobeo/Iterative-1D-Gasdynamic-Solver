@@ -1,4 +1,5 @@
 import React from 'react';
+import { FlowVisualization } from '../FlowVisualization/FlowVisualization';
 import {
   DndContext,
   closestCenter,
@@ -16,7 +17,7 @@ import {
 
 import { ComponentBlock } from '../ComponentBlock/ComponentBlock';
 
-export function Canvas({ components, setComponents, config }) {
+export function Canvas({ components, setComponents, config, results }) {
   const sensors = useSensors(
     useSensor(PointerSensor),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
@@ -120,6 +121,11 @@ export function Canvas({ components, setComponents, config }) {
             </div>
           </div>
         </div>
+
+        {/* Dynamic Flow Visualization */}
+        {results && results.data && (
+          <FlowVisualization components={components} results={results} />
+        )}
 
       </div>
     </div>

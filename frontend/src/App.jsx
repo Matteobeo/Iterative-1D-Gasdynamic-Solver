@@ -53,6 +53,7 @@ function App() {
           components={components}
           setComponents={(c) => { setComponents(c); clearResults(); }}
           config={config}
+          results={results}
         />
 
         {error && (
