@@ -10,20 +10,11 @@ echo        GASFLASH: 1D GAS DYNAMICS SOLVER
 echo ===================================================
 echo.
 
-:: Check if gasdynamics-sim directory exists
-if not exist "gasdynamics-sim" (
-    echo [ERRORE] Cartella 'gasdynamics-sim' non trovata!
-    echo Assicurati che questo file .bat sia nella stessa cartella di 'gasdynamics-sim'.
-    echo.
-    pause
-    exit /b
-)
-
 echo [1/3] Avvio del Backend (FastAPI)...
-start /b cmd /c "cd gasdynamics-sim\backend && uvicorn app.main:app --host 127.0.0.1 --port 8000"
+start /b cmd /c "cd backend && uvicorn app.main:app --host 127.0.0.1 --port 8000"
 
 echo [2/3] Avvio del Frontend (Vite/React)...
-start /b cmd /c "cd gasdynamics-sim\frontend && npm run dev"
+start /b cmd /c "cd frontend && npm run dev"
 
 echo.
 echo [3/3] In attesa che i server siano pronti...

@@ -10,16 +10,9 @@ echo     GASFLASH: INSTALLAZIONE DIPENDENZE
 echo ===================================================
 echo.
 
-:: Verifica se la cartella del progetto esiste
-if not exist "gasdynamics-sim" (
-    echo [ERRORE] Cartella 'gasdynamics-sim' non trovata!
-    pause
-    exit /b
-)
-
 :: --- SEZIONE BACKEND ---
 echo [1/4] Installazione dipendenze Python (Backend)...
-cd /d "gasdynamics-sim\backend"
+cd /d "backend"
 python -m pip install -r requirements.txt
 if %ERRORLEVEL% NEQ 0 (
     echo [ATTENZIONE] Errore durante l'installazione Python. 
@@ -29,7 +22,7 @@ cd /d "%~dp0"
 
 :: --- SEZIONE FRONTEND ---
 echo [2/4] Installazione moduli Node.js (Frontend)...
-cd /d "gasdynamics-sim\frontend"
+cd /d "frontend"
 call npm install
 if %ERRORLEVEL% NEQ 0 (
     echo [ATTENZIONE] Errore durante l'installazione Node.js.
@@ -45,8 +38,8 @@ echo.
 
 :: --- AVVIO SERVER ---
 echo [3/4] Lancio dei server in background...
-start /b cmd /c "cd gasdynamics-sim\backend && uvicorn app.main:app --host 127.0.0.1 --port 8000"
-start /b cmd /c "cd gasdynamics-sim\frontend && npm run dev"
+start /b cmd /c "cd backend && uvicorn app.main:app --host 127.0.0.1 --port 8000"
+start /b cmd /c "cd frontend && npm run dev"
 
 :: --- ATTESA E BROWSER ---
 echo [4/4] In attesa che i server siano pronti...
