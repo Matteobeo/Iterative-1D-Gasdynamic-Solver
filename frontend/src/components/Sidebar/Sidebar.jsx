@@ -102,11 +102,11 @@ export function Sidebar({ config, setConfig, onAddComponent, onSimulate, loading
               onClick={() => handleConfigChange('solver_type', 'euler')}
               style={{ flex: 1, padding: '0.5rem', fontSize: '0.75rem' }}
             >
-              Advanced (Euler)
+              Real gas(BETA)
             </button>
           </div>
           <p style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginTop: '0.5rem', padding: '0 0.5rem' }}>
-            Use Advanced for multi-throat or complex choking cases.
+            Use Real gas(BETA) for multi-throat or complex choking cases.
           </p>
         </div>
 
