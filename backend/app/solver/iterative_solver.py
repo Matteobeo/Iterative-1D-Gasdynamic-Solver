@@ -480,8 +480,8 @@ def solve_full_pipeline(
             warnings.append("Cannot resolve thermal choking. Returning subsonic solution.")
             return res_choked_sub, warnings, components
 
-        # --- Modifica: Ponte per urti multipli ---
-        # Valutiamo la capacità massima di contropressione della gola termica
+        # --- Modification: Bridge for multiple shocks ---
+        # Evaluate the maximum backpressure capacity of the thermal throat
         comps_no_shock = [c for c in split_comps_crit if c.type != "normal_shock"]
         res_crit_sub = evaluate_pipeline(
             comps_no_shock, M_in_choked * 0.9999, P0_in, T0_in, gas,
@@ -492,16 +492,16 @@ def solve_full_pipeline(
         M_exit_crit = res_crit[-1]["M_out"]
         P_exit_crit = res_crit[-1]["P_out"]
 
-        # Se il choking termico resiste alla pressione ambiente, aggiorniamo 
-        # le variabili e scendiamo al B3 senza fare return.
+        # If thermal choking persists against ambient pressure, update 
+        # variables and proceed to B3 instead of returning.
         if P_amb <= P_sub_exit_crit:
-            warnings.append("Gola termica attivata. Ricerca onde d'urto secondarie in corso...")
+            warnings.append("Thermal throat activated. Searching for secondary shocks...")
             components = split_comps_crit
             res_choked_sup = res_crit
             M_exit_sup = M_exit_crit
             P_exit_sup = P_exit_crit
             
-        # Se la contropressione sblocca la gola termica, l'urto deve risalire.
+        # If backpressure unlocks the thermal throat, the shock must move upstream.
         else:
             def shock_obj_choked(x_shock):
                 try:
@@ -523,10 +523,10 @@ def solve_full_pipeline(
                     split_comps, M_in_choked * 0.9999, P0_in, T0_in, gas,
                     force_supersonic_divergent=False
                 )
-                warnings.append("Choking termico rotto. Inserimento singolo urto per contropressione.")
+                warnings.append("Thermal choking broken. Inserting single shock for backpressure.")
                 return final_res, warnings, split_comps
             except ValueError:
-                warnings.append("Errore: impossibile posizionare l'onda d'urto singola.")
+                warnings.append("Error: impossible to position a single normal shock.")
                 return res_crit, warnings, split_comps_crit
 
     # B2: Classify fully supersonic exit
@@ -564,21 +564,21 @@ def solve_full_pipeline(
     # NEW: Search component by component, from EXIT to INLET
     current_x = sum(c.params.get("length", 1.0) for c in components)
     
-    # Usiamo zip per avere i dati di Mach (res) associati al componente
+    # Use zip to associate Mach data (res) with components
     for comp, res in zip(reversed(components), reversed(res_choked_sup)):
         L = comp.params.get("length", 1.0)
         x_high = current_x - 1e-6
         
-        # Controlliamo solo i condotti capaci di flusso supersonico
+        # Check only components capable of supersonic flow
         if comp.type in ["divergent", "fanno", "rayleigh"] and res["M_out"] > 1.0:
             
-            # PROTEZIONE GOLA (Throat Protection):
-            # Se l'ingresso del componente è vicino a Mach 1 (es. gola fisica o termica),
-            # spingiamo x_low leggermente a valle nel regime supersonico sicuro (es. verso M=1.05)
-            # per evitare crash di precisione numerica (Subsonic shock error).
+            # THROAT PROTECTION:
+            # If the component inlet is near Mach 1 (e.g. physical or thermal throat),
+            # push x_low slightly downstream into the safe supersonic regime (e.g. M=1.05)
+            # to avoid numerical precision issues (Subsonic shock error).
             if res["M_in"] <= 1.02:
                 frac = (1.05 - res["M_in"]) / max(res["M_out"] - res["M_in"], 1e-9)
-                frac = max(0.02, min(0.98, frac)) # Spostamento tra il 2% e il 98% del condotto
+                frac = max(0.02, min(0.98, frac)) # Shift between 2% and 98% of the component length
                 x_low = (current_x - L) + L * frac
             else:
                 x_low = current_x - L + 1e-6
@@ -587,18 +587,18 @@ def solve_full_pipeline(
                 val_low = shock_obj(x_low)
                 val_high = shock_obj(x_high)
             except ChokedError:
-                # Se piazzare l'urto qui strozza la geometria a valle, scartiamo l'intervallo
+                # If placing the shock here chokes the downstream geometry, discard the interval
                 current_x -= L
                 continue
 
-            # Se P_amb è racchiuso tra le pressioni fornite dagli urti agli estremi
+            # If P_amb is bracketed between the pressures provided by the boundary shocks
             if val_low * val_high <= 0:
                 try:
-                    # Ottimizzazione esatta
+                    # Exact optimization
                     x_shock_opt = brentq(shock_obj, x_low, x_high)
                     split_comps = split_pipeline_at_x(components, x_shock_opt)
                     
-                    # Valutazione finale sicura (dentro try-except per prevenire crash UI)
+                    # Safe final evaluation (inside try-except to prevent UI crashes)
                     final_res = evaluate_pipeline(
                         split_comps, M_in_choked * 0.9999, P0_in, T0_in, gas,
                         force_supersonic_divergent=True
@@ -606,7 +606,7 @@ def solve_full_pipeline(
                     return final_res, warnings, split_comps
                 except Exception as e:
                     warnings.append(f"Numerical issue refining shock in {comp.type}: {str(e)}")
-                    pass # Non crashare, prova semplicemente più a monte
+                    pass # Do not crash, simply try further upstream
                     
         current_x -= L
 

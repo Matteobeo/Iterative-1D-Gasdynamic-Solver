@@ -1,5 +1,5 @@
 """
-Iterative 1D Gasdynamic Solver - Hybrid Edition
+Iterative 1D Gasdynamic Solver - Hybrid Edition HYBRID SOLVER
 ================================================
 
 Architecture:

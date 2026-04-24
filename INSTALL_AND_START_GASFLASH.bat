@@ -1,18 +1,35 @@
 @echo off
-TITLE GASFLASH - Setup Completo e Avvio
+TITLE GASFLASH PRO - High-Performance CFD Suite
 COLOR 0B
 
 :: Posizionamento nella cartella dello script
 cd /d "%~dp0"
 
 echo ===================================================
-echo     GASFLASH: INSTALLAZIONE DIPENDENZE
+echo     GASFLASH PRO: ADVANCED INSTALLATION
+echo     Numerical Core: Numba-Accelerated Roe/MUSCL
 echo ===================================================
 echo.
 
+:: Verifica se la cartella del progetto esiste
+if not exist "gasdynamics-sim" (
+    echo [ERRORE] Cartella 'gasdynamics-sim' non trovata!
+    pause
+    exit /b
+)
+
+:: --- AGGIORNAMENTO DA GITHUB ---
+echo [1/5] Controllo aggiornamenti da GitHub...
+cd /d "gasdynamics-sim"
+git pull origin main
+if %ERRORLEVEL% NEQ 0 (
+    echo [INFO] Impossibile aggiornare da GitHub. Procedo con la versione locale.
+)
+cd /d "%~dp0"
+
 :: --- SEZIONE BACKEND ---
-echo [1/4] Installazione dipendenze Python (Backend)...
-cd /d "backend"
+echo [2/5] Installazione dipendenze Python (Backend)...
+cd /d "gasdynamics-sim\backend"
 python -m pip install -r requirements.txt
 if %ERRORLEVEL% NEQ 0 (
     echo [ATTENZIONE] Errore durante l'installazione Python. 
@@ -21,8 +38,8 @@ if %ERRORLEVEL% NEQ 0 (
 cd /d "%~dp0"
 
 :: --- SEZIONE FRONTEND ---
-echo [2/4] Installazione moduli Node.js (Frontend)...
-cd /d "frontend"
+echo [3/5] Installazione moduli Node.js (Frontend)...
+cd /d "gasdynamics-sim\frontend"
 call npm install
 if %ERRORLEVEL% NEQ 0 (
     echo [ATTENZIONE] Errore durante l'installazione Node.js.
@@ -37,12 +54,12 @@ echo ===================================================
 echo.
 
 :: --- AVVIO SERVER ---
-echo [3/4] Lancio dei server in background...
-start /b cmd /c "cd backend && uvicorn app.main:app --host 127.0.0.1 --port 8000"
-start /b cmd /c "cd frontend && npm run dev"
+echo [4/5] Lancio dei server in background...
+start /b cmd /c "cd gasdynamics-sim\backend && uvicorn app.main:app --host 127.0.0.1 --port 8000"
+start /b cmd /c "cd gasdynamics-sim\frontend && npm run dev"
 
 :: --- ATTESA E BROWSER ---
-echo [4/4] In attesa che i server siano pronti...
+echo [5/5] In attesa che i server siano pronti...
 timeout /t 8 /nobreak > nul
 
 echo Apertura del simulatore...
@@ -50,8 +67,9 @@ start http://localhost:5173
 
 echo.
 echo ===================================================
-echo     SISTEMA PRONTO! 
-echo     Puoi chiudere questa finestra a fine sessione.
+echo     SYSTEM READY! 
+echo     High-Performance CFD Core is now active.
+echo     Close this window only after your session.
 echo ===================================================
 echo.
 pause
