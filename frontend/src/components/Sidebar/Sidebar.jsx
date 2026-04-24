@@ -98,11 +98,11 @@ export function Sidebar({ config, setConfig, onAddComponent, onSimulate, loading
               Analytical
             </button>
             <button
-              className={`solver-toggle ${config.solver_type === 'euler' ? 'active' : ''}`}
-              onClick={() => handleConfigChange('solver_type', 'euler')}
+              className={`solver-toggle ${config.solver_type === 'general' ? 'active' : ''}`}
+              onClick={() => handleConfigChange('solver_type', 'general')}
               style={{ flex: 1, padding: '0.5rem', fontSize: '0.75rem' }}
             >
-              Real gas(BETA)
+              BETA
             </button>
           </div>
           <p style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginTop: '0.5rem', padding: '0 0.5rem' }}>

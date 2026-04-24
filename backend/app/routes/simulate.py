@@ -18,25 +18,22 @@ async def simulate(request: SimulationRequest):
         if not request.components:
             raise ValueError("No components provided.")
             
-        if request.solver_type == "euler":
-            from app.solver.euler_solver import EulerSolver1D
-            solver = EulerSolver1D(gas)
-            data = solver.solve(
+        if request.solver_type == "general":
+            from app.solver.hybrid_solver import solve_full_pipeline as solve_hybrid, generate_plot_data as plot_hybrid
+            
+            results, warnings, final_comps = solve_hybrid(
                 components=request.components,
                 P0_in=request.P0,
                 T0_in=request.T0,
-                P_amb=request.P_amb
+                P_amb=request.P_amb,
+                gas=gas
             )
-            # Find boundaries for UI
-            boundaries = [0.0]
-            curr_x = 0.0
-            for comp in request.components:
-                curr_x += comp.params.get("length", 1.0)
-                boundaries.append(curr_x)
+            
+            data, boundaries = plot_hybrid(final_comps, results, gas)
             
             return SimulationResponse(
                 success=True,
-                warnings=["Advanced Euler FVM Solver used."],
+                warnings=["Advanced General Solver (BETA) used."] + warnings,
                 data=data,
                 component_boundaries=boundaries
             )

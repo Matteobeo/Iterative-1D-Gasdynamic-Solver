@@ -13,7 +13,7 @@ function App() {
     P_amb: 101325,
     gamma: 1.4,
     R: 287.0,
-    solver_type: 'analytical' // 'analytical' or 'euler'
+    solver_type: 'analytical' // 'analytical' or 'general' (BETA)
   });
 
   const [components, setComponents] = useState([]);

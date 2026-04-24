@@ -1,0 +1,18 @@
+{
+  "P0": 500000,
+  "T0": 600,
+  "P_amb": 101325,
+  "gamma": 1.4,
+  "R": 287.0,
+  "components": [
+    {
+      "type": "convergent",
+      "params": {
+        "d_in": 0.1,
+        "d_out": 0.05,
+        "length": 0.1
+      }
+    }
+  ],
+  "solver_type": "analytical"
+}

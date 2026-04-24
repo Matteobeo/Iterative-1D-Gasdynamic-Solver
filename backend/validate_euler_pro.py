@@ -1,12 +1,12 @@
 import numpy as np
-from app.solver.euler_solver import EulerSolver1D
+from app.solver.general_solver import GeneralSolver1D
 from app.solver.gas import GasProperties
 from app.models import ComponentConfig
 
 def run_test(name, components, P0_in, T0_in, P_amb, nx=200, max_iter=15000):
     print(f"\n--- RUNNING TEST: {name} ---")
     gas = GasProperties()
-    solver = EulerSolver1D(gas, nx=nx)
+    solver = GeneralSolver1D(gas, nx=nx)
     
     results = solver.solve(components, P0_in, T0_in, P_amb, max_iter=max_iter, tol=1e-10)
     

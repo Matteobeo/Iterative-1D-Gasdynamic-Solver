@@ -1,12 +1,12 @@
 import numpy as np
-from app.solver.euler_solver import EulerSolver1D
+from app.solver.general_solver import GeneralSolver1D
 from app.solver.gas import GasProperties
 from app.models import ComponentConfig
 
 def validate():
     print("--- GASDYNAMICS PRO v2.0 VALIDATION ---")
     gas = GasProperties() # Air: gamma=1.4, R=287
-    solver = EulerSolver1D(gas, nx=200)
+    solver = GeneralSolver1D(gas, nx=200)
     
     # Test Case: Isentropic CD Nozzle (Choked)
     # Throat at middle, d_in=0.1, d_throat=0.05, d_out=0.1
