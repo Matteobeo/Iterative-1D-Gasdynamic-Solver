@@ -94,7 +94,7 @@ def cfd_core_loop(U, A, A_int, f_fanning, q_heat, delta_h0, q_mode_total, D, dx,
         # Update
         for i in prange(nx):
             s2 = p[i] * (A_int[i+1] - A_int[i]) / dx - 2.0 * f_fanning[i] * rho[i] * abs(u[i]) * u[i] * A[i] / D[i]
-            s3 = rho[i] * abs(u[i]) * delta_h0[i] * A[i] if q_mode_total[i] else rho[i] * q_heat[i] * A[i]
+            s3 = rho[i] * abs(u[i]) * (delta_h0[i] if q_mode_total[i] else q_heat[i]) * A[i]
                 
             U_new[0, i] = U_curr[0, i] - (dt/dx) * (F_int[0, i+1] - F_int[0, i])
             U_new[1, i] = U_curr[1, i] - (dt/dx) * (F_int[1, i+1] - F_int[1, i]) + dt * s2

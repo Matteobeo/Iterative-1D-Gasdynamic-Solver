@@ -219,6 +219,10 @@ def solve_full_pipeline(
     # 4. Translate CFD diagnostics into legacy-style warnings
     warnings.extend(_classify_warnings(cfd_data["diagnostics"]))
 
+    # Memory management: Clear cache if it grows too large to prevent leaks
+    if len(_PLOT_CACHE) > 50:
+        _PLOT_CACHE.clear()
+
     # Stash the raw CFD data so generate_plot_data can reuse it without
     # re-running the solver. We attach it to a module-level cache keyed by
     # the components id (cheap and avoids signature changes).

@@ -153,6 +153,24 @@ export function Sidebar({ config, setConfig, onAddComponent, onSimulate, loading
 
       </div>
 
+      {/* Warning for extreme values */}
+      {(config.P0 > 1e7 || config.T0 > 1e4) && (
+        <div style={{
+          backgroundColor: '#fef3c7',
+          color: '#92400e',
+          padding: '0.75rem',
+          margin: '0 1rem 0.5rem 1rem',
+          borderRadius: '8px',
+          fontSize: '0.75rem',
+          border: '1px solid #fde68a',
+          display: 'flex',
+          gap: '0.5rem'
+        }}>
+          <span>⚠️</span>
+          <span>Warning: extreme input values (many zeros) may cause numerical divergence or unexpected results.</span>
+        </div>
+      )}
+
       {/* Simulate button */}
       <div className="sidebar-footer">
         <button

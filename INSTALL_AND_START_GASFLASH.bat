@@ -11,25 +11,16 @@ echo     Numerical Core: Numba-Accelerated Roe/MUSCL
 echo ===================================================
 echo.
 
-:: Verifica se la cartella del progetto esiste
-if not exist "gasdynamics-sim" (
-    echo [ERRORE] Cartella 'gasdynamics-sim' non trovata!
-    pause
-    exit /b
-)
-
 :: --- AGGIORNAMENTO DA GITHUB ---
 echo [1/5] Controllo aggiornamenti da GitHub...
-cd /d "gasdynamics-sim"
 git pull origin main
 if %ERRORLEVEL% NEQ 0 (
     echo [INFO] Impossibile aggiornare da GitHub. Procedo con la versione locale.
 )
-cd /d "%~dp0"
 
 :: --- SEZIONE BACKEND ---
 echo [2/5] Installazione dipendenze Python (Backend)...
-cd /d "gasdynamics-sim\backend"
+cd /d "%~dp0backend"
 python -m pip install -r requirements.txt
 if %ERRORLEVEL% NEQ 0 (
     echo [ATTENZIONE] Errore durante l'installazione Python. 
@@ -39,7 +30,7 @@ cd /d "%~dp0"
 
 :: --- SEZIONE FRONTEND ---
 echo [3/5] Installazione moduli Node.js (Frontend)...
-cd /d "gasdynamics-sim\frontend"
+cd /d "%~dp0frontend"
 call npm install
 if %ERRORLEVEL% NEQ 0 (
     echo [ATTENZIONE] Errore durante l'installazione Node.js.
@@ -55,8 +46,8 @@ echo.
 
 :: --- AVVIO SERVER ---
 echo [4/5] Lancio dei server in background...
-start /b cmd /c "cd gasdynamics-sim\backend && uvicorn app.main:app --host 127.0.0.1 --port 8000"
-start /b cmd /c "cd gasdynamics-sim\frontend && npm run dev"
+start /b cmd /c "cd backend && uvicorn app.main:app --host 127.0.0.1 --port 8000"
+start /b cmd /c "cd frontend && npm run dev"
 
 :: --- ATTESA E BROWSER ---
 echo [5/5] In attesa che i server siano pronti...
