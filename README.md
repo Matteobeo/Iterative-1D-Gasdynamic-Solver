@@ -1,67 +1,72 @@
-# Iterative-1D-Gasdynamic-Solver
+# GasDynamics Pro: High-Performance CFD Suite
 
-1D Steady-State Gas Dynamics Flow Simulator — Web Application.
-This software is a one-dimensional computational fluid dynamics (CFD) solver designed to simulate steady compressible flow regimes within duct networks. The architecture is based on a hybrid approach that combines analytical relations for individual components with global numerical methods, ensuring high physical fidelity and numerical robustness.
+**GasDynamics Pro** is a comprehensive one-dimensional computational fluid dynamics (CFD) solver designed to simulate steady-state compressible flow regimes within complex duct networks. It combines textbook analytical precision with advanced numerical schemes for research-grade simulations.
 
-## Architecture
+---
 
-- **Backend**: Python FastAPI (gas dynamics solver)
-- **Frontend**: React + Vite (drag & drop UI with Plotly.js charts)
+## 🚀 Key Features
 
-## Quick Start
+- **Dual Solver Architecture**:
+  - **Analytical Mode**: Uses shooting methods and exact relations (Isentropic, Fanno, Rayleigh, Normal Shock) for rapid, precise results in standard cases.
+  - **BETA Mode (General Solver)**: A high-performance numerical core implementing a **Roe Flux-Difference Splitting** scheme with **Harten entropy fix**. Accelerated via **Numba JIT** for near-native performance.
+- **Dynamic Flow Visualization**: Real-time particle engine with velocity clamping, compression effects, and shock accumulation logic.
+- **Full SI Compliance**: All calculations and outputs (Mass Flow [kg/s], Pressure [Pa], Temperature [K]) are strictly in International System units.
+- **Drag-and-Drop Interface**: Build complex pipelines (nozzles, friction ducts, heat exchangers) visually and reorder components on the fly.
 
-### Backend
+---
+
+## 🛠️ Tech Stack
+
+- **Backend**: Python 3.9+ / FastAPI
+- **Numerical Core**: NumPy + Numba (JIT Compilation)
+- **Frontend**: React / Vite / Lucide Icons
+- **Charts**: Plotly.js (High-resolution spatial profiles)
+
+---
+
+## 🏁 Quick Start
+
+### Windows (Recommended)
+1. Ensure you have **Python 3.9+** and **Node.js** installed and added to your PATH.
+2. Clone the repository.
+3. Run `INSTALL_AND_START_GASFLASH.bat` to automatically install dependencies and launch the suite.
+4. For subsequent runs, use `START_GASFLASH.bat`.
+
+### Manual Setup
+**Backend:**
 ```bash
 cd backend
 pip install -r requirements.txt
 uvicorn app.main:app --reload
 ```
-Server runs at `http://localhost:8000`
-
-### Frontend
+**Frontend:**
 ```bash
 cd frontend
 npm install
 npm run dev
 ```
-App runs at `http://localhost:5173`
 
-## Components
+---
 
-| Component | Description | Parameters |
-|-----------|-------------|------------|
-| Convergent | Converging duct (isentropic) | d_in, d_out, length |
-| Divergent | Diverging duct (isentropic) | d_in, d_out, length |
-| Fanno | Adiabatic duct with friction | length, d_h, f |
-| Rayleigh | Frictionless duct with heat transfer | q, length |
+## 📐 Computational Components
 
-## Computational Engine Update
+| Component | Physical Model | Key Parameters |
+|-----------|----------------|----------------|
+| **Convergent** | Isentropic Nozzle | $d_{in}, d_{out}, L$ |
+| **Divergent** | Isentropic Diffuser | $d_{in}, d_{out}, L$ |
+| **Fanno Duct** | Adiabatic Flow w/ Friction | $L, D_h, f$ |
+| **Rayleigh Duct** | Frictionless w/ Heat Transfer | $q [J/kg], L$ |
+| **Normal Shock** | Rankine-Hugoniot Discontinuity | Captured automatically or fitted |
 
-### Problem Addressed
-The previous implementation used discrete component-based calculations that failed in complex concatenated configurations, returning incorrect mass flows or "over-choked" errors because it didn't account for upstream influences like thermal choking (Rayleigh) or friction (Fanno).
+---
 
-### New Solution
-Implemented a new **Iterative 1D Flow Solver** using:
-- **Numerical Integration**: Recursive integration (Euler/Runge-Kutta 4) along spatial domain
-- **Shooting Method**: Iterative adjustment of mass flow to match boundary conditions
-- **Differential Equations**: Fundamental gasdynamics equations solved at each spatial step
+## 🧪 Advanced Diagnostics
 
-### Key Features
-- Solves continuity: dρ/ρ + dV/V + dA/A = 0
-- Solves momentum: dP + ρV dV = -4f dx/(D) ρV²/2
-- Solves energy: cp dT + V dV = dq
-- Uses ideal gas equation: P = ρRT
+The system monitors and warns about:
+- **Numerical Divergence**: Alerts users if extreme inputs (e.g., $P > 10^7$ Pa) are entered.
+- **Thermal/Frictional Choking**: Automatic detection of sonic passages.
+- **Shock Placement**: Precise tracking of normal shocks in overexpanded or high-friction regimes.
+- **Mass Conservation**: Residual monitoring to ensure solution validity.
 
-### Solver Architecture
-The `Iterative1DFlowSolver` class:
-- Implements shooting method for boundary value problems
-- Integrates flow properties step-by-step through duct segments
-- Handles choking conditions properly (Mach = 1)
-- Adjusts mass flow rate iteratively for convergence
-- Processes complex concatenated configurations correctly
-
-### Benefits
-- Accurately computes mass flows in complex duct arrangements
-- Properly handles upstream influences on flow behavior
-- Eliminates "over-choked" errors in concatenated configurations
-- Maintains the same API interface for frontend compatibility
+---
+*Developed for Academic & Engineering Research — Ad Astra.*
