@@ -686,16 +686,19 @@ def generate_plot_data(
                 M = res["M_in"]
                 P0 = res["P0_in"]
                 T0 = res["T0_in"]
+                A_x = res.get("A_in", 1.0)
             elif dx == L and L > 0:
                 M = res["M_out"]
                 P0 = res["P0_out"]
                 T0 = res["T0_out"]
+                A_x = res.get("A_out", 1.0)
             else:
                 if L < 1e-12:
                     # Avoid division by zero for zero-length components
                     M = res["M_in"]
                     P0 = res["P0_in"]
                     T0 = res["T0_in"]
+                    A_x = res.get("A_in", 1.0)
                 elif comp.type == "fanno":
                     f = comp.params["f"]
                     d_h = comp.params["d_h"]
@@ -727,6 +730,7 @@ def generate_plot_data(
                         M = res["M_in"]
                         P0 = res["P0_in"]
                         T0 = res["T0_in"]
+                        A_x = res.get("A_in", 1.0)
                     else:
                         A_star = A_in / area_mach_ratio(res["M_in"], gas.gamma)
                         d_x = d_in + (d_out - d_in) * (dx / max(L, 1e-12))
