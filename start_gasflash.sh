@@ -51,13 +51,22 @@ cd ..
 # --- SEZIONE FRONTEND ---
 echo "[3/5] Gestione moduli Node.js..."
 cd frontend || exit
-if [ "$NEEDS_FULL_REBUILD" -eq 1 ]; then
-    echo "[INFO] Pulizia e reinstallazione moduli..."
+
+# Verifica se Vite è presente (indicatore di installazione corretta)
+FRONTEND_BROKEN=0
+if [ ! -f "node_modules/.bin/vite" ]; then
+    FRONTEND_BROKEN=1
+fi
+
+if [ "$NEEDS_FULL_REBUILD" -eq 1 ] || [ "$FRONTEND_BROKEN" -eq 1 ]; then
+    echo "[INFO] Rilevata installazione incompleta o corrotta. Ripristino in corso..."
     if [ -d "node_modules" ]; then
+        echo "[INFO] Pulizia moduli frontend..."
         rm -rf node_modules
     fi
     npm install
 else
+    echo "[3/5] Controllo moduli Node.js (Rapido)..."
     if [ -f "package-lock.json" ]; then
         npm ci
     else
