@@ -102,11 +102,11 @@ export function Sidebar({ config, setConfig, onAddComponent, onSimulate, loading
               onClick={() => handleConfigChange('solver_type', 'general')}
               style={{ flex: 1, padding: '0.5rem', fontSize: '0.75rem' }}
             >
-              BETA
+              Computational
             </button>
           </div>
           <p style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginTop: '0.5rem', padding: '0 0.5rem' }}>
-            If the duct is very complex, use the BETA mode.
+            If the duct is very complex, use the Computational mode.
           </p>
         </div>
 
