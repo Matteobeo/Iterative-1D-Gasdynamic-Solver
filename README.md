@@ -29,7 +29,7 @@
 ### Windows (Recommended)
 1. Ensure you have **Python 3.9+** and **Node.js** installed and added to your PATH.
 2. Clone the repository.
-3. Run `INSTALL_AND_START_GASFLASH.bat` to automatically install dependencies and launch the suite.
+3. Run `START_GASFLASH.bat` to automatically install dependencies and launch the suite.
 
 ### Manual Setup
 **Backend:**
