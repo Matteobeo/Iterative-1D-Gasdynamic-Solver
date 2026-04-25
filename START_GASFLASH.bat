@@ -25,54 +25,65 @@ set "NEEDS_FULL_REBUILD=0"
 echo [1/5] Verifica aggiornamenti sistema...
 
 git --version >nul 2>&1
-if %ERRORLEVEL% EQU 0 (
-    echo [INFO] Modalita' Git rilevata.
-    git fetch origin >nul 2>&1
-    if %ERRORLEVEL% EQU 0 (
-        for /f "tokens=*" %%i in ('git rev-list HEAD..origin/main --count 2^>nul') do set BEHIND_COUNT=%%i
-        if "!BEHIND_COUNT!"=="" set BEHIND_COUNT=0
-        
-        if !BEHIND_COUNT! GTR 0 (
-            echo [INFO] Scaricamento aggiornamenti (!BEHIND_COUNT! commit)...
-            git reset --hard origin/main >nul 2>&1
-            git clean -fd >nul 2>&1
-            set NEEDS_FULL_REBUILD=1
-        ) else (
-            echo [INFO] Sistema aggiornato.
-        )
-    ) else (
-        echo [INFO] Server GitHub non raggiungibile. Avvio in modalita' locale.
-    )
-) else (
-    echo [INFO] Modalita' ZIP (Smart Update)...
-    
-    set LOCAL_SHA=none
-    if exist .last_commit set /p LOCAL_SHA=<.last_commit
+if %ERRORLEVEL% EQU 0 goto GIT_MODE
+goto ZIP_MODE
 
-    :: Recupero SHA remoto via PowerShell (con bypass policy)
-    set "GET_SHA_CMD=(Invoke-RestMethod -Uri '%API_URL%').sha"
-    for /f "usebackq tokens=*" %%a in (`powershell -NoProfile -ExecutionPolicy Bypass -Command "%GET_SHA_CMD%" 2^>nul`) do set REMOTE_SHA=%%a
-
-    if "!REMOTE_SHA!"=="" (
-        echo [INFO] Impossibile verificare aggiornamenti online.
-    ) else if NOT "!REMOTE_SHA!"=="!LOCAL_SHA!" (
-        echo [INFO] Nuova versione disponibile. Download in corso...
-        set "DL_CMD=Invoke-WebRequest -Uri '%REPO_URL%/archive/refs/heads/main.zip' -OutFile 'update.zip'; Expand-Archive -Path 'update.zip' -DestinationPath 'temp_update' -Force; Copy-Item -Path 'temp_update\%REPO_NAME%-main\*' -Destination '.' -Recurse -Force; Remove-Item 'update.zip'; Remove-Item 'temp_update' -Recurse"
-        powershell -NoProfile -ExecutionPolicy Bypass -Command "!DL_CMD!"
-        
-        if !ERRORLEVEL! EQU 0 (
-            echo !REMOTE_SHA! > .last_commit
-            echo [INFO] Aggiornamento completato con successo.
-            set NEEDS_FULL_REBUILD=1
-        ) else (
-            echo [ERRORE] Aggiornamento fallito. Controlla la connessione.
-            pause
-        )
-    ) else (
-        echo [INFO] Sistema gia' aggiornato all'ultima versione.
-    )
+:GIT_MODE
+echo [INFO] Modalita' Git rilevata.
+git fetch origin >nul 2>&1
+if %ERRORLEVEL% NEQ 0 (
+    echo [INFO] Server GitHub non raggiungibile. Avvio in modalita' locale.
+    goto SETUP_BACKEND
 )
 
+for /f "tokens=*" %%i in ('git rev-list HEAD..origin/main --count 2^>nul') do set BEHIND_COUNT=%%i
+if "!BEHIND_COUNT!"=="" set BEHIND_COUNT=0
+
+if !BEHIND_COUNT! GTR 0 (
+    echo [INFO] Scaricamento aggiornamenti (!BEHIND_COUNT! commit)...
+    git reset --hard origin/main >nul 2>&1
+    git clean -fd >nul 2>&1
+    set NEEDS_FULL_REBUILD=1
+) else (
+    echo [INFO] Sistema aggiornato.
+)
+goto SETUP_BACKEND
+
+:ZIP_MODE
+echo [INFO] Modalita' ZIP (Smart Update)...
+
+set LOCAL_SHA=none
+if exist .last_commit set /p LOCAL_SHA=<.last_commit
+
+:: Recupero SHA remoto via PowerShell
+set "GET_SHA_CMD=(Invoke-RestMethod -Uri '%API_URL%').sha"
+for /f "usebackq tokens=*" %%a in (`powershell -NoProfile -ExecutionPolicy Bypass -Command "%GET_SHA_CMD%" 2^>nul`) do set REMOTE_SHA=%%a
+
+if "!REMOTE_SHA!"=="" (
+    echo [INFO] Impossibile verificare aggiornamenti online.
+    goto SETUP_BACKEND
+)
+
+if "!REMOTE_SHA!"=="!LOCAL_SHA!" (
+    echo [INFO] Sistema gia' aggiornato all'ultima versione.
+    goto SETUP_BACKEND
+)
+
+echo [INFO] Nuova versione disponibile. Download in corso...
+set "DL_CMD=Invoke-WebRequest -Uri '%REPO_URL%/archive/refs/heads/main.zip' -OutFile 'update.zip'; Expand-Archive -Path 'update.zip' -DestinationPath 'temp_update' -Force; Copy-Item -Path 'temp_update\%REPO_NAME%-main\*' -Destination '.' -Recurse -Force; Remove-Item 'update.zip'; Remove-Item 'temp_update' -Recurse"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "!DL_CMD!"
+
+if !ERRORLEVEL! EQU 0 (
+    echo !REMOTE_SHA! > .last_commit
+    echo [INFO] Aggiornamento completato con successo.
+    set NEEDS_FULL_REBUILD=1
+) else (
+    echo [ERRORE] Aggiornamento fallito. Controlla la connessione.
+    pause
+)
+goto SETUP_BACKEND
+
+:SETUP_BACKEND
 :: --- SEZIONE BACKEND ---
 echo [2/5] Configurazione ambiente Python...
 cd /d "%~dp0backend"
