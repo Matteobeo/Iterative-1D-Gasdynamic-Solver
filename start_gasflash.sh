@@ -7,47 +7,57 @@ echo "    Numerical Core: Numba-Accelerated Roe/MUSCL"
 echo "==================================================="
 echo ""
 
-# --- AGGIORNAMENTO DA GITHUB ---
-echo "[1/5] Controllo aggiornamenti da GitHub..."
-git fetch origin > /dev/null 2>&1
+# Inizializzazione
+NEEDS_FULL_REBUILD=0
 
-BEHIND_COUNT=$(git rev-list HEAD..origin/main --count)
-
-if [ "$BEHIND_COUNT" -gt 0 ]; then
-    echo "[INFO] Rilevato aggiornamento ($BEHIND_COUNT nuovi commit)."
-    echo "[INFO] Esecuzione \"FORCE CLEAN UPDATE\": sincronizzazione completa..."
-    
-    git reset --hard origin/main
-    git clean -fd
-    
-    NEEDS_FULL_REBUILD=1
-else
-    echo "[INFO] Il codice è già aggiornato all'ultima versione di GitHub."
+# --- CONTROLLO GIT ---
+if ! command -v git &> /dev/null
+then
+    echo "[ATTENZIONE] Git non rilevato. Saltando aggiornamenti..."
     NEEDS_FULL_REBUILD=0
+else
+    # --- AGGIORNAMENTO DA GITHUB ---
+    echo "[1/5] Controllo aggiornamenti da GitHub..."
+    if git fetch origin > /dev/null 2>&1; then
+        BEHIND_COUNT=$(git rev-list HEAD..origin/main --count 2>/dev/null)
+        
+        if [ "${BEHIND_COUNT:-0}" -gt 0 ]; then
+            echo "[INFO] Rilevato aggiornamento ($BEHIND_COUNT nuovi commit)."
+            echo "[INFO] Esecuzione \"FORCE CLEAN UPDATE\": sincronizzazione completa..."
+            git reset --hard origin/main
+            git clean -fd
+            NEEDS_FULL_REBUILD=1
+        else
+            echo "[INFO] Il codice è già aggiornato all'ultima versione di GitHub."
+            NEEDS_FULL_REBUILD=0
+        fi
+    else
+        echo "[INFO] Impossibile contattare GitHub. Procedo in modalità offline."
+        NEEDS_FULL_REBUILD=0
+    fi
 fi
 
 # --- SEZIONE BACKEND ---
-cd backend
+echo "[2/5] Gestione dipendenze Python..."
+cd backend || exit
 if [ "$NEEDS_FULL_REBUILD" -eq 1 ]; then
-    echo "[2/5] REINSTALLAZIONE dipendenze Python..."
+    echo "[INFO] Reinstallazione forzata..."
     python3 -m pip install --upgrade --force-reinstall -r requirements.txt
 else
-    echo "[2/5] Controllo dipendenze Python..."
     python3 -m pip install -r requirements.txt
 fi
 cd ..
 
 # --- SEZIONE FRONTEND ---
-cd frontend
+echo "[3/5] Gestione moduli Node.js..."
+cd frontend || exit
 if [ "$NEEDS_FULL_REBUILD" -eq 1 ]; then
-    echo "[3/5] REINSTALLAZIONE moduli Node.js (Clean Install)..."
+    echo "[INFO] Pulizia e reinstallazione moduli..."
     if [ -d "node_modules" ]; then
-        echo "[INFO] Eliminazione vecchi moduli frontend..."
         rm -rf node_modules
     fi
     npm install
 else
-    echo "[3/5] Controllo moduli Node.js..."
     if [ -f "package-lock.json" ]; then
         npm ci
     else
@@ -81,9 +91,9 @@ fi
 echo ""
 echo "==================================================="
 echo "    SYSTEM READY!" 
-echo "    High-Performance CFD Core is now active."
+echo "    Mantieni aperto il terminale durante l'uso."
 echo "==================================================="
 echo ""
 
-# Keep script running to show logs if needed, or just wait
+# Wait for background processes
 wait
