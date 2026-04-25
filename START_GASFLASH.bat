@@ -1,5 +1,5 @@
 @echo off
-TITLE GASFLASH PRO - High-Performance CFD Suite
+TITLE GASFLASH PRO (beta version) - High-Performance CFD Suite
 COLOR 0B
 
 :: Posizionamento nella cartella dello script
@@ -13,9 +13,10 @@ echo.
 
 :: --- AGGIORNAMENTO DA GITHUB ---
 echo [1/5] Controllo aggiornamenti da GitHub...
-git pull origin main
+git fetch origin
+git merge origin/main --no-edit
 if %ERRORLEVEL% NEQ 0 (
-    echo [INFO] Impossibile aggiornare da GitHub. Procedo con la versione locale.
+    echo [INFO] Conflitto o errore git. Procedo con la versione locale.
 )
 
 :: --- SEZIONE BACKEND ---
@@ -31,7 +32,12 @@ cd /d "%~dp0"
 :: --- SEZIONE FRONTEND ---
 echo [3/5] Installazione moduli Node.js (Frontend)...
 cd /d "%~dp0frontend"
-call npm install
+:: Usa ci se package-lock esiste, altrimenti install
+if exist package-lock.json (
+    call npm ci
+) else (
+    call npm install
+)
 if %ERRORLEVEL% NEQ 0 (
     echo [ATTENZIONE] Errore durante l'installazione Node.js.
     echo Assicurati di avere Node.js installato e nel PATH.
