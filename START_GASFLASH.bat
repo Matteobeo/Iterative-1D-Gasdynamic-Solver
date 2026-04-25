@@ -1,11 +1,8 @@
 @echo off
 setlocal EnableDelayedExpansion
 
-TITLE GASFLASH PRO (beta version) - High-Performance CFD Suite
-COLOR 0B
-
-:: Posizionamento nella cartella dello script
-cd /d "%~dp0"
+:: GASFLASH PRO (beta version) - Universal Launcher
+:: Numerical Core: Numba-Accelerated Roe/MUSCL
 
 echo ===================================================
 echo     GASFLASH PRO: ADVANCED INSTALLATION
@@ -13,44 +10,42 @@ echo     Numerical Core: Numba-Accelerated Roe/MUSCL
 echo ===================================================
 echo.
 
-:: Inizializzazione variabili
+:: Inizializzazione
 set NEEDS_FULL_REBUILD=0
 set BEHIND_COUNT=0
 
-:: --- CONTROLLO GIT ---
+:: --- CONTROLLO AGGIORNAMENTI (UNIVERSALE) ---
+set GIT_AVAILABLE=0
 git --version >nul 2>&1
-if %ERRORLEVEL% NEQ 0 (
-    echo [ATTENZIONE] Git non rilevato. Saltando aggiornamenti...
-    goto SKIP_GIT
-)
+if %ERRORLEVEL% EQU 0 set GIT_AVAILABLE=1
 
-:: --- AGGIORNAMENTO DA GITHUB ---
-echo [1/5] Controllo aggiornamenti da GitHub...
-git fetch origin > nul 2>&1
-if %ERRORLEVEL% NEQ 0 (
-    echo [INFO] Impossibile contattare GitHub. Procedo in modalita' offline.
-    goto SKIP_GIT
-)
-
-:: Recupera il numero di commit mancanti
-for /f "tokens=*" %%i in ('git rev-list HEAD..origin/main --count 2^>nul') do set BEHIND_COUNT=%%i
-
-:: Se BEHIND_COUNT e' nullo o non numerico, forziamo a 0 per sicurezza
-set "var="&for /f "delims=0123456789" %%a in ("!BEHIND_COUNT!") do set "var=%%a"
-if defined var set BEHIND_COUNT=0
-if "!BEHIND_COUNT!"=="" set BEHIND_COUNT=0
-
-if !BEHIND_COUNT! GTR 0 (
-    echo [INFO] Rilevato aggiornamento (!BEHIND_COUNT! nuovi commit).
-    echo [INFO] Esecuzione "FORCE CLEAN UPDATE": sincronizzazione completa...
-    git reset --hard origin/main
-    git clean -fd
-    set NEEDS_FULL_REBUILD=1
+if %GIT_AVAILABLE% EQU 1 (
+    echo [1/5] Controllo aggiornamenti via Git...
+    git fetch origin >nul 2>&1
+    if %ERRORLEVEL% EQU 0 (
+        for /f "tokens=*" %%i in ('git rev-list HEAD..origin/main --count 2^>nul') do set BEHIND_COUNT=%%i
+        if "!BEHIND_COUNT!"=="" set BEHIND_COUNT=0
+        
+        if !BEHIND_COUNT! GTR 0 (
+            echo [INFO] Rilevato aggiornamento (!BEHIND_COUNT! nuovi commit). Sincronizzazione...
+            git reset --hard origin/main >nul 2>&1
+            git clean -fd >nul 2>&1
+            set NEEDS_FULL_REBUILD=1
+        ) else (
+            echo [INFO] Codice gia' aggiornato (Git).
+        )
+    ) else (
+        echo [INFO] GitHub non raggiungibile. Procedo offline.
+    )
 ) else (
-    echo [INFO] Il codice e' gia' aggiornato all'ultima versione di GitHub.
+    echo [1/5] Git non trovato. Tentativo di aggiornamento via ZIP (PowerShell)...
+    powershell -Command "try { $url = 'https://github.com/Matteobeo/Iterative-1D-Gasdynamic-Solver/archive/refs/heads/main.zip'; Write-Host 'Download aggiornamento in corso...'; Invoke-WebRequest -Uri $url -OutFile 'update.zip'; Write-Host 'Estrazione...'; Expand-Archive -Path 'update.zip' -DestinationPath 'temp_update' -Force; Copy-Item -Path 'temp_update\Iterative-1D-Gasdynamic-Solver-main\*' -Destination '.' -Recurse -Force; Remove-Item 'update.zip'; Remove-Item 'temp_update' -Recurse; Write-Host 'Aggiornamento completato.'; exit 0 } catch { exit 1 }"
+    if %ERRORLEVEL% EQU 0 (
+        set NEEDS_FULL_REBUILD=1
+    ) else (
+        echo [ATTENZIONE] Impossibile aggiornare via ZIP. Procedo con la versione locale.
+    )
 )
-
-:SKIP_GIT
 
 :: --- SEZIONE BACKEND ---
 echo [2/5] Gestione dipendenze Python...
@@ -63,6 +58,7 @@ if "!NEEDS_FULL_REBUILD!"=="1" (
 )
 if %ERRORLEVEL% NEQ 0 echo [!] Nota: Errore minore durante l'installazione Python.
 cd /d "%~dp0"
+
 :: --- SEZIONE FRONTEND ---
 echo [3/5] Gestione moduli Node.js...
 cd /d "%~dp0frontend"
@@ -95,13 +91,12 @@ echo.
 
 :: --- AVVIO SERVER ---
 echo [4/5] Lancio dei server in background...
-:: Uso di start /b con titoli espliciti per stabilita'
-start "GASFLASH_BACKEND" /b cmd /c "cd backend && uvicorn app.main:app --host 127.0.0.1 --port 8000"
-start "GASFLASH_FRONTEND" /b cmd /c "cd frontend && npm run dev"
+start /b cmd /c "cd backend && uvicorn app.main:app --host 127.0.0.1 --port 8000"
+start /b cmd /c "cd frontend && npm run dev"
 
 :: --- ATTESA E BROWSER ---
 echo [5/5] In attesa che i server siano pronti...
-timeout /t 8 /nobreak > nul
+timeout /t 8 /nobreak >nul
 
 echo Apertura del simulatore...
 start http://localhost:5173
