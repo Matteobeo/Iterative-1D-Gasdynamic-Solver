@@ -703,6 +703,7 @@ def generate_plot_data(
                     M = f_res["M_out"]
                     P0 = res["P0_in"] * f_res["P0_ratio"]
                     T0 = res["T0_in"]
+                    A_x = gas.area_from_diameter(d_h)
 
                 elif comp.type == "rayleigh":
                     q_total = comp.params["q"]
@@ -714,6 +715,7 @@ def generate_plot_data(
                     M = r_res["M_out"]
                     P0 = res["P0_in"] * r_res["P0_ratio"]
                     T0 = r_res["T0_out"]
+                    A_x = gas.area_from_diameter(comp.params["d_h"])
 
                 elif comp.type in ["convergent", "divergent"]:
                     d_in = comp.params["d_in"]
@@ -751,13 +753,14 @@ def generate_plot_data(
                     M = res["M_in"] + (res["M_out"] - res["M_in"]) * frac
                     P0 = res["P0_in"] + (res["P0_out"] - res["P0_in"]) * frac
                     T0 = res["T0_in"] + (res["T0_out"] - res["T0_in"]) * frac
+                    A_x = res.get("A_in", 1.0)
 
             P = P0 * pressure_ratio(M, gas.gamma)
-            T = T0 * temperature_ratio(M, gas.gamma)
+            T = T0 * temperature_ratio(M, gamma=gas.gamma)
             rho = gas.density(P, T)
             a = gas.speed_of_sound(T)
             V = M * a
-            mass_flux = rho * V
+            mass_flow_rate_val = rho * V * A_x
 
             data["x"].append(x)
             data["mach"].append(M)
@@ -765,7 +768,7 @@ def generate_plot_data(
             data["pressure_total"].append(P0)
             data["temperature"].append(T)
             data["temperature_total"].append(T0)
-            data["mass_flow"].append(mass_flux)
+            data["mass_flow"].append(mass_flow_rate_val)
 
         current_x += L
         boundaries.append(current_x)

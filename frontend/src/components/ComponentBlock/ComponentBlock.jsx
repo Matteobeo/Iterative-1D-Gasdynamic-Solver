@@ -59,7 +59,13 @@ export function ComponentBlock({ id, component, index, onUpdate, onRemove }) {
       <div className="comp-params">
         {Object.entries(component.params).map(([key, val]) => (
           <div key={key} className="param-group">
-            <label>{key} {key.includes('length') || key.includes('d_') ? '[m]' : ''}</label>
+            <label>
+              {key} {
+                key === 'q' ? '[J/kg]' : 
+                (key.includes('length') || key.includes('d_')) ? '[m]' : 
+                ''
+              }
+            </label>
             <input 
               type="number" 
               step="any"

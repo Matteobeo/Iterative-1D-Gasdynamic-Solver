@@ -31,10 +31,10 @@ export function FlowVisualization({ components, results }) {
       maxRadius = Math.max(maxRadius, r_in, r_out);
     });
 
-    const numParticles = 400;
+    const numParticles = 1000;
     
-    // Inizializzazione o reset delle particelle se la struttura è vecchia o mancante
-    if (!particles.current || particles.current.length === 0 || !particles.current[0].history) {
+    // Reset delle particelle se la lunghezza non coincide o la struttura è vecchia
+    if (!particles.current || particles.current.length !== numParticles || !particles.current[0].history) {
       particles.current = [];
       for (let i = 0; i < numParticles; i++) {
         particles.current.push({
@@ -105,6 +105,17 @@ export function FlowVisualization({ components, results }) {
         shocks.push({ x: x[i], m1: mach[i], m2: mach[i+1] });
       }
     }
+
+    const updateCanvasSize = () => {
+      const container = canvas.parentElement;
+      if (container) {
+        canvas.width = container.clientWidth;
+        canvas.height = 250; 
+      }
+    };
+
+    updateCanvasSize();
+    window.addEventListener('resize', updateCanvasSize);
 
     const render = () => {
       const w = canvas.width;
@@ -197,28 +208,36 @@ export function FlowVisualization({ components, results }) {
         const p_local = interpolate(p.x, x, pressure);
         const r = getDuctRadius(p.x);
 
-        // Shock interaction: slight jitter when crossing shock
+        // Shock interaction: dramatic jump in properties
+        let inShock = false;
         shocks.forEach(s => {
-          if (Math.abs(p.x - s.x) < 0.005) {
-            p.yOffset += (Math.random() - 0.5) * 0.1;
+          if (Math.abs(p.x - s.x) < 0.01) {
+            inShock = true;
+            p.yOffset += (Math.random() - 0.5) * 0.15; // Increased turbulence
           }
         });
 
-        p.x += 0.003 + (m * 0.012);
+        // Dynamic velocity based on Mach number - CLAMPED to avoid visual skipping
+        const maxStep = totalL * 0.02; // Max 2% of duct length per frame
+        const velocity = Math.min(maxStep, 0.001 + (m * 0.008));
+        p.x += velocity;
+
         if (p.x > totalL) {
           p.x = 0;
           p.history = [];
           p.yOffset = (Math.random() - 0.5) * 1.8;
         }
 
+        // Density representation: higher pressure = more opaque and slightly larger
         const p_norm = (p_local - minP) / (maxP - minP + 1e-6);
-        const alpha = 0.2 + p_norm * 0.6;
+        const alpha = Math.min(1.0, 0.3 + p_norm * 0.7);
         
         const px = marginX + (p.x / totalL) * drawW;
         const py = h / 2 + p.yOffset * r * yScale;
 
+        // Trail effect
         p.history.push({ x: px, y: py });
-        if (p.history.length > 5) p.history.shift();
+        if (p.history.length > 4) p.history.shift();
 
         if (p.history.length > 1) {
           ctx.beginPath();
@@ -226,15 +245,22 @@ export function FlowVisualization({ components, results }) {
           for (let k = 1; k < p.history.length; k++) {
             ctx.lineTo(p.history[k].x, p.history[k].y);
           }
-          ctx.strokeStyle = getColorForTemp(t_local, alpha * 0.3);
-          ctx.lineWidth = Math.max(0.1, 1 + p_norm * 1.5);
+          ctx.strokeStyle = getColorForTemp(t_local, alpha * 0.4);
+          ctx.lineWidth = Math.max(0.5, 1 + p_norm * 2);
           ctx.stroke();
         }
 
-        ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
+        // Particle core
+        ctx.fillStyle = inShock ? '#fff' : `rgba(255, 255, 255, ${alpha})`;
+        if (inShock) {
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = '#fff';
+        }
         ctx.beginPath();
-        ctx.arc(px, py, 1 + p_norm * 0.5, 0, Math.PI * 2);
+        const size = (m > 1) ? 1 : (1.5 + p_norm); // Subsonic particles (compressed) look slightly larger
+        ctx.arc(px, py, size, 0, Math.PI * 2);
         ctx.fill();
+        ctx.shadowBlur = 0;
       });
 
       // 4. Draw Outer Walls
@@ -271,7 +297,10 @@ export function FlowVisualization({ components, results }) {
     };
 
     render();
-    return () => cancelAnimationFrame(animationFrameId);
+    return () => {
+      cancelAnimationFrame(animationFrameId);
+      window.removeEventListener('resize', updateCanvasSize);
+    };
   }, [results, components]);
 
   return (
@@ -289,7 +318,6 @@ export function FlowVisualization({ components, results }) {
       </div>
       <canvas 
         ref={canvasRef} 
-        width={1000} 
         height={250} 
         style={{ 
           width: '100%', 

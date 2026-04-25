@@ -131,8 +131,8 @@
 
 .pipeline-container {
   width: 100%;
-  max-width: 800px;
-  min-height: 200px;
+  max-width: 1200px;
+  min-height: 150px;
   display: flex;
   flex-direction: column;
   gap: 1rem;
@@ -238,8 +238,8 @@
 }
 
 .results-panel {
-  height: 45vh;
-  min-height: 300px;
+  height: 35vh;
+  min-height: 250px;
   background: var(--bg-panel);
   border-top: 1px solid var(--border-color);
   display: flex;
@@ -370,7 +370,7 @@
 /* Canvas wrapper */
 .canvas-wrapper {
   width: 100%;
-  max-width: 800px;
+  max-width: 1200px;
   display: flex;
   flex-direction: column;
 }

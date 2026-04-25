@@ -106,7 +106,7 @@ export function Sidebar({ config, setConfig, onAddComponent, onSimulate, loading
             </button>
           </div>
           <p style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginTop: '0.5rem', padding: '0 0.5rem' }}>
-            Use for real gas simulations above 1000 degrees.
+            If the duct is very complex, use the BETA mode.
           </p>
         </div>
 

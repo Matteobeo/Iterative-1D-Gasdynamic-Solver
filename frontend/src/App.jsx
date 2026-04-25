@@ -82,7 +82,11 @@ function App() {
           </div>
         )}
 
-        <ResultsDashboard results={results} />
+        {results && results.data && (
+          <ResultsDashboard 
+            results={results} 
+          />
+        )}
       </div>
     </div>
   );
