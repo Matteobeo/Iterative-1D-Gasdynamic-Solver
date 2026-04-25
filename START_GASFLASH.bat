@@ -63,12 +63,18 @@ if "!NEEDS_FULL_REBUILD!"=="1" (
 )
 if %ERRORLEVEL% NEQ 0 echo [!] Nota: Errore minore durante l'installazione Python.
 cd /d "%~dp0"
-
 :: --- SEZIONE FRONTEND ---
 echo [3/5] Gestione moduli Node.js...
 cd /d "%~dp0frontend"
-if "!NEEDS_FULL_REBUILD!"=="1" (
-    echo [INFO] Pulizia e reinstallazione moduli...
+
+rem Verifica se Vite è presente (indicatore di installazione corretta)
+set FRONTEND_BROKEN=0
+if not exist node_modules\.bin\vite set FRONTEND_BROKEN=1
+
+if "!NEEDS_FULL_REBUILD!"=="1" set FRONTEND_BROKEN=1
+
+if "!FRONTEND_BROKEN!"=="1" (
+    echo [INFO] Rilevata installazione incompleta o corrotta. Ripristino in corso...
     if exist node_modules rd /s /q node_modules
     call npm install
 ) else (
@@ -78,7 +84,7 @@ if "!NEEDS_FULL_REBUILD!"=="1" (
         call npm install
     )
 )
-if %ERRORLEVEL% NEQ 0 echo [!] Nota: Errore minore durante l'installazione Node.js.
+if %ERRORLEVEL% NEQ 0 echo [!] Nota: Errore durante l'installazione Node.js.
 cd /d "%~dp0"
 
 echo.
