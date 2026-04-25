@@ -4,7 +4,7 @@ import { Sidebar } from './components/Sidebar/Sidebar';
 import { Canvas } from './components/Canvas/Canvas';
 import { ResultsDashboard } from './components/Charts/ResultsDashboard';
 import { useSimulation } from './hooks/useSimulation';
-import { createComponent } from './utils/constants.jsx';
+import { createComponent } from './utils/componentTypes.jsx';
 
 function App() {
   const [config, setConfig] = useState({

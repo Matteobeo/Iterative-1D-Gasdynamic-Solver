@@ -1,5 +1,5 @@
 import React from 'react';
-import { COMPONENT_TYPES } from '../../utils/constants.jsx';
+import { COMPONENT_TYPES } from '../../utils/componentTypes.jsx';
 
 const PARAM_LABELS = {
   d_in: 'd_in [m]',
