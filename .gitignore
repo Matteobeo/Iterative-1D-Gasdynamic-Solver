@@ -21,3 +21,10 @@ dist/
 # IDEs
 .vscode/
 .idea/
+
+# LaTeX build artifacts
+*.aux
+*.log
+*.out
+*.toc
+*.synctex.gz

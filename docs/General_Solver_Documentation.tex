@@ -301,4 +301,50 @@ Viene specificamente skippata l'imposizione geometrica della discontinuita "\tex
 
 Concluse le iterazioni, l'array bidimensionale \texttt{U\_final} viene ridistribuito nel formato \texttt{Mach}, \texttt{Temperature}, \texttt{Pressure} richiesto dal frontend Web, generando dizionari serializzabili pronti al tracciamento su Grafana o React Recharts.
 
+\section{Esempio di Calcolo Applicato: Ugello Convergente-Divergente con Urto Normale}
+
+Per concretizzare l'architettura teorica fin qui esposta, analizziamo il comportamento del solutore CFD applicato a un caso test reale: l'espansione di aria in un ugello convergente-divergente operante in regime di sovra-espansione. 
+
+\subsection{Geometria e Condizioni Iniziali}
+Immaginiamo un condotto composto da tre sezioni:
+\begin{enumerate}
+    \item \textbf{Convergente:} Lunghezza $0.5$ m, diametro in ingresso $D_{\text{in}} = 0.2$ m, diametro in uscita $D_{\text{out}} = 0.1$ m.
+    \item \textbf{Divergente:} Lunghezza $1.0$ m, diametro in ingresso $D_{\text{in}} = 0.1$ m, diametro in uscita $D_{\text{out}} = 0.15$ m.
+    \item \textbf{Tubo Dritto:} Lunghezza $0.5$ m, diametro costante $D = 0.15$ m.
+\end{enumerate}
+
+Le condizioni al contorno imposte sono:
+\begin{itemize}
+    \item Pressione di Ristagno all'ingresso: $P_{0, \text{in}} = 500\,000$ Pa (5 bar).
+    \item Temperatura di Ristagno all'ingresso: $T_{0, \text{in}} = 300$ K.
+    \item Pressione Ambiente allo scarico: $P_{\text{amb}} = 400\,000$ Pa (4 bar).
+    \item Fluido: Aria ($\gamma = 1.4$, $R = 287$ J/kgK).
+\end{itemize}
+
+\subsection{Evoluzione del Flusso (Simulazione Temporale CFD)}
+All'istante $t=0$, il tubo contiene aria ferma a pressione ambiente. Quando il simulatore avanza nei primi millisecondi ($\Delta t$ limitato dalla condizione CFL a circa $10^{-5}$ s), un'onda di espansione fortissima viaggia dall'inlet ad alta pressione verso valle, accelerando il gas. 
+
+\subsubsection{Fase 1: Espansione Isentropica e Soffocamento (Choking)}
+Nel tronco convergente, l'area decresce. L'algoritmo calcola il termine sorgente di spinta geometrica $p \frac{dA}{dx}$ (che è negativo, opponendosi al flusso). Il flusso accelera fino a raggiungere esattamente Mach 1 ($u = a$) in corrispondenza del diametro minimo ($D=0.1$ m, a $x=0.5$ m). La portata massica si fissa al suo valore di \textit{choking}. Nel codice, la stabilità in questa delicata fase transonica è garantita dal Correttore di Entropia di Harten (Eq. 24).
+
+\subsubsection{Fase 2: Regime Supersonico}
+Superata la gola, il condotto diventa divergente. Essendo il flusso già sonico, l'espansione geometrica forza un'ulteriore accelerazione. Il flusso diventa \textbf{supersonico} (Mach $> 1$) e la pressione statica $p$ crolla rapidamente, scendendo abbondantemente sotto i $400\,000$ Pa. 
+
+\subsubsection{Fase 3: Formazione dell'Urto Normale}
+Essendo la pressione ambiente esterna $P_{\text{amb}} = 400\,000$ Pa molto più alta della pressione statica generata dall'espansione supersonica, l'informazione di alta pressione cerca di risalire la corrente. Tuttavia, siccome il fluido è supersonico, le onde acustiche non possono tornare indietro. 
+Le onde di compressione si accumulano in un punto specifico del divergente generando una \textbf{discontinuità stazionaria}: un Urto Normale.
+
+Il Risolutore di Riemann di Roe rileva che tra due celle adiacenti (ad esempio $i$ e $i+1$) esiste un enorme $\Delta p$ in contrapposizione a un flusso supersonico. Calcolando gli autovalori $\lambda_k$, il termine di dissipazione upwind frena istantaneamente il gas. 
+
+Attraverso la "faccia" dell'urto, il solver preserva rigorosamente l'uguaglianza dei flussi conservativi $\mathbf{F}(\mathbf{U}_L) = \mathbf{F}(\mathbf{U}_R)$:
+\begin{itemize}
+    \item $U_0$ (massa): La densità $\rho$ aumenta repentinamente, compensando l'esatto calo di velocità $u$ in modo che $\rho u$ resti costante.
+    \item $U_1$ (quantità di moto): L'imponente perdita di velocità causa un salto violento della pressione statica $p$ per preservare l'equilibrio $\rho u^2 + p$.
+    \item Il flusso passa istantaneamente da Supersonico (es. Mach 1.8) a Subsonico (es. Mach 0.6).
+\end{itemize}
+
+\subsubsection{Fase 4: Riadattamento Subsonico e Uscita}
+A valle dell'urto, il gas è tornato subsonico. Poiché siamo ancora nel tratto divergente, e il gas è ora subsonico, l'aumento di sezione provoca un \textbf{rallentamento} della velocità (diffusione subsonica) e un ulteriore recupero graduale di pressione.
+Nel tratto finale a tubo dritto, il gas subsonico (in assenza di attrito) mantiene pressione costante, che combacia esattamente, all'ultima cella, con la boundary condition imposta: $p_{N_x-1} \approx 400\,000$ Pa. Il transitorio è concluso e la simulazione ha raggiunto lo Steady-State.
+
 \end{document}
