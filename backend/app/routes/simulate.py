@@ -21,7 +21,7 @@ def compute_summary(request: SimulationRequest, data: dict) -> dict:
     T_e = data["temperature"][-1]
     M_e = data["mach"][-1]
     
-    a_e = (gamma * R * T_e) ** 0.5
+    a_e = (gamma * R * max(0.0, T_e)) ** 0.5
     V_e = M_e * a_e
     
     A_e = 1.0

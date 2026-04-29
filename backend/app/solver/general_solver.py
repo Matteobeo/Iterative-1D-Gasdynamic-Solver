@@ -222,6 +222,11 @@ class GeneralSolver1D:
         rho = U_final[0, :] / A
         u = U_final[1, :] / U_final[0, :]
         p = (self.gamma - 1) * (U_final[2, :] / A - 0.5 * rho * u**2)
+        
+        # Enforce physical bounds to avoid NaN and complex numbers later
+        rho = np.maximum(rho, 1e-6)
+        p = np.maximum(p, 1e-5)
+        
         M = u / np.sqrt(self.gamma * p / rho)
         T = p / (rho * self.R)
         T0 = T * (1 + 0.5*(self.gamma-1)*M**2)

@@ -327,6 +327,7 @@ def _empty_plot_data() -> Dict[str, List[float]]:
     return {
         "x": [], "mach": [], "pressure": [], "pressure_total": [],
         "temperature": [], "temperature_total": [], "mass_flow": [],
+        "diagnostics": {"choked": False, "num_normal_shocks": 0}
     }
 
 
