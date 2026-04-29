@@ -92,11 +92,23 @@ export function Sidebar({ config, setConfig, onAddComponent, onSimulate, loading
           <div className="glass-card" style={{ padding: '0.5rem', display: 'flex', gap: '0.5rem' }}>
             <button
               className={`solver-toggle ${config.solver_type === 'analytical' ? 'active' : ''}`}
-              onClick={() => handleConfigChange('solver_type', 'analytical')}
-              style={{ flex: 1, padding: '0.5rem', fontSize: '0.75rem', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}
+              disabled={true}
+              style={{ 
+                flex: 1, 
+                padding: '0.5rem', 
+                fontSize: '0.75rem', 
+                display: 'flex', 
+                flexDirection: 'column', 
+                alignItems: 'center', 
+                justifyContent: 'center',
+                opacity: 0.5,
+                filter: 'grayscale(1)',
+                cursor: 'not-allowed',
+                pointerEvents: 'none'
+              }}
             >
               <span style={{ fontWeight: 600 }}>Analytical</span>
-              <span style={{ fontSize: '0.5rem', opacity: 0.7, marginTop: '2px', fontWeight: 'normal' }}>(ONLY FOR THE SIMPLEST CASE)</span>
+              <span style={{ fontSize: '0.5rem', opacity: 0.7, marginTop: '2px', fontWeight: 'normal' }}>(DEPRECATED / USE COMP.)</span>
             </button>
             <button
               className={`solver-toggle ${config.solver_type === 'general' ? 'active' : ''}`}

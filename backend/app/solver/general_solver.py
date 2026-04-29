@@ -145,14 +145,43 @@ def cfd_core_loop(U_curr, A, A_int, f_fanning, q_heat, delta_h0, q_mode_total, D
             if ws > max_ws: max_ws = ws
         dt = 0.4 * dx / max_ws
         
-        # Update
+        # Update con Operator Splitting (Fractional Step - 1° Ordine)
         for i in prange(nx):
-            s2 = p[i] * (A_int[i+1] - A_int[i]) / dx - 2.0 * f_fanning[i] * rho[i] * abs(u[i]) * u[i] * A[i] / D[i]
-            s3 = rho[i] * abs(u[i]) * (delta_h0[i] if q_mode_total[i] else q_heat[i]) * A[i]
+            # FASE 1: IDRODINAMICA (Hydrodynamic Step)
+            U_star_0 = U_curr[0, i] - (dt/dx) * (F_int[0, i+1] - F_int[0, i])
+            U_star_1 = U_curr[1, i] - (dt/dx) * (F_int[1, i+1] - F_int[1, i])
+            U_star_2 = U_curr[2, i] - (dt/dx) * (F_int[2, i+1] - F_int[2, i])
+            
+            # FASE 2: TERMINI SORGENTE STIFF (Source Step con Sub-stepping)
+            n_sub = 5
+            dt_sub = dt / n_sub
+            
+            U_sub_0 = U_star_0
+            U_sub_1 = U_star_1
+            U_sub_2 = U_star_2
+            
+            for sub in range(n_sub):
+                rho_sub = U_sub_0 / A[i]
+                if rho_sub < 1e-6:
+                    rho_sub = 1e-6
+                    U_sub_0 = rho_sub * A[i]
+                    
+                u_sub = U_sub_1 / U_sub_0
+                p_sub = (gamma - 1.0) * (U_sub_2 / A[i] - 0.5 * rho_sub * u_sub**2)
                 
-            U_new[0, i] = U_curr[0, i] - (dt/dx) * (F_int[0, i+1] - F_int[0, i])
-            U_new[1, i] = U_curr[1, i] - (dt/dx) * (F_int[1, i+1] - F_int[1, i]) + dt * s2
-            U_new[2, i] = U_curr[2, i] - (dt/dx) * (F_int[2, i+1] - F_int[2, i]) + dt * s3
+                if p_sub < 1e-5:
+                    p_sub = 1e-5
+                    
+                s2_geom = p_sub * (A_int[i+1] - A_int[i]) / dx
+                s2_fric = -2.0 * f_fanning[i] * rho_sub * abs(u_sub) * u_sub * A[i] / D[i]
+                s3_heat = rho_sub * abs(u_sub) * (delta_h0[i] if q_mode_total[i] else q_heat[i]) * A[i]
+                
+                U_sub_1 = U_sub_1 + dt_sub * (s2_geom + s2_fric)
+                U_sub_2 = U_sub_2 + dt_sub * s3_heat
+                
+            U_new[0, i] = U_sub_0
+            U_new[1, i] = U_sub_1
+            U_new[2, i] = U_sub_2
             
         # Convergence Check (Sistemato per Numba)
         if it % 1000 == 0:
