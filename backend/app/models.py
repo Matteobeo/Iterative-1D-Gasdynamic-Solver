@@ -26,8 +26,18 @@ class RayleighParams(BaseModel):
     q: float
 
 
+class SolidGrainParams(BaseModel):
+    length: float      # Grain length [m]
+    d_h: float         # Port hydraulic diameter [m]
+    rho_b: float       # Propellant density [kg/m^3]
+    A_b: float         # Initial burning area [m^2]
+    n: float           # Pressure exponent (dimensionless, typically < 1)
+    a_coeff: float     # Temperature coefficient
+    T_b: float         # Ambient grain temperature [K]
+
+
 class ComponentConfig(BaseModel):
-    type: str  # "convergent", "divergent", "fanno", "rayleigh"
+    type: str  # "convergent", "divergent", "fanno", "rayleigh", "solid_grain"
     params: Dict[str, float]
 
 
@@ -80,3 +90,4 @@ class SimulationResponse(BaseModel):
     data: Optional[Union[SimulationData, Dict[str, List[float]]]] = None
     shock_location: Optional[float] = None
     component_boundaries: List[float] = []
+    summary: Optional[Dict[str, Any]] = None

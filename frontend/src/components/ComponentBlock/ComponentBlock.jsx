@@ -34,7 +34,7 @@ export function ComponentBlock({ id, component, index, onUpdate, onRemove }) {
     <div 
       ref={setNodeRef} 
       style={style} 
-      className={`component-block ${isDragging ? 'dragging' : ''}`}
+      className={`component-block ${isDragging ? 'dragging' : ''} ${component.type === 'solid_grain' ? 'solid-grain-block' : ''}`}
     >
       <div className="comp-header">
         <div className="comp-title">
@@ -57,24 +57,42 @@ export function ComponentBlock({ id, component, index, onUpdate, onRemove }) {
       </div>
       
       <div className="comp-params">
-        {Object.entries(component.params).map(([key, val]) => (
-          <div key={key} className="param-group">
-            <label>
-              {key} {
-                key === 'q' ? '[J/kg]' : 
-                (key.includes('length') || key.includes('d_')) ? '[m]' : 
-                ''
-              }
-            </label>
-            <input 
-              type="number" 
-              step="any"
-              className="input-field" 
-              value={val}
-              onChange={(e) => handleParamChange(key, e.target.value)}
-            />
-          </div>
-        ))}
+        {Object.entries(component.params).map(([key, val]) => {
+          const SOLID_GRAIN_LABELS = {
+            rho_b: { label: 'ρ_b (Density)', unit: 'kg/m³' },
+            A_b: { label: 'A_b (Burn Area)', unit: 'm²' },
+            n: { label: 'n (Press. Exp.)', unit: '' },
+            a_coeff: { label: 'a (Temp. Coeff.)', unit: '' },
+            T_b: { label: 'T_b (Grain Temp.)', unit: 'K' },
+          };
+
+          let displayLabel = key;
+          let unitLabel = '';
+
+          if (SOLID_GRAIN_LABELS[key] && component.type === 'solid_grain') {
+            displayLabel = SOLID_GRAIN_LABELS[key].label;
+            unitLabel = SOLID_GRAIN_LABELS[key].unit;
+          } else if (key === 'q') {
+            unitLabel = '[J/kg]';
+          } else if (key.includes('length') || key.includes('d_')) {
+            unitLabel = '[m]';
+          }
+
+          return (
+            <div key={key} className="param-group">
+              <label>
+                {displayLabel} {unitLabel && <span style={{ color: 'var(--text-muted)', fontSize: '0.65rem' }}>{unitLabel}</span>}
+              </label>
+              <input 
+                type="number" 
+                step="any"
+                className="input-field" 
+                value={val}
+                onChange={(e) => handleParamChange(key, e.target.value)}
+              />
+            </div>
+          );
+        })}
       </div>
       
       <div style={{ position: 'absolute', bottom: '-20px', left: '50%', transform: 'translateX(-50%)', zIndex: 0 }}>

@@ -73,7 +73,7 @@ def evaluate_component(
         A_star = A_in / area_mach_ratio(max(M_in, 1e-12), gas.gamma)
         A_out_ratio = A_out / max(A_star, 1e-18)
 
-        if A_out_ratio < 1.0 - 1e-6:
+        if A_out_ratio < 1.0 - 1e-10:
             raise ChokedError("Convergent duct choked.")
 
         M_out = mach_from_area_ratio(max(A_out_ratio, 1.0), gas.gamma, subsonic=True)
@@ -163,6 +163,31 @@ def evaluate_component(
         except ValueError:
             raise ChokedError("Normal shock attempted in subsonic flow.")
 
+    elif comp.type == "solid_grain":
+        # Solid propellant grain: mass source component
+        # mass_flow = A_b * rho_b * a_coeff * P^n
+        # This is a zero-length combustion chamber source;
+        # It injects hot gas mass at the local pressure.
+        rho_b = comp.params["rho_b"]
+        A_b = comp.params["A_b"]
+        n_exp = comp.params["n"]
+        a_coeff = comp.params["a_coeff"]
+        T_b = comp.params.get("T_b", 300.0)
+
+        # Use upstream total pressure as reference for burn rate
+        P_ref = P0_in * pressure_ratio(M_in, gas.gamma)
+        grain_mdot = A_b * rho_b * a_coeff * (P_ref ** n_exp)
+
+        out.update({
+            "M_out": M_in,  # Mach unchanged (source, not duct)
+            "P0_out": P0_in,
+            "T0_out": T0_in,
+            "A_in": 1.0,  # No geometric area for a grain
+            "A_out": 1.0,
+            "grain_mdot": grain_mdot,  # Expose to solver
+            "grain_T_b": T_b,
+        })
+
     else:
         raise ValueError(f"Unknown component type: {comp.type}")
 
@@ -227,7 +252,7 @@ def find_choked_inlet_mach(
     M_low = 1e-6
     M_high = 1.0
 
-    for _ in range(50):
+    for _ in range(100):
         M_mid = (M_low + M_high) / 2.0
         try:
             evaluate_pipeline(components, M_mid, P0_in, T0_in, gas)
@@ -356,7 +381,7 @@ def solve_full_pipeline(
 
     try:
         res_choked_sub_candidate = evaluate_pipeline(
-            components, M_in_choked * 0.999, P0_in, T0_in, gas,
+            components, M_in_choked, P0_in, T0_in, gas,
             force_supersonic_divergent=False
         )
         res_choked_sub = res_choked_sub_candidate
@@ -389,7 +414,7 @@ def solve_full_pipeline(
         if delta_p / P0_in < 1e-4:
             M_hi_search = min(0.1, M_in_choked * 0.9)
         else:
-            M_hi_search = M_in_choked * 0.9999
+            M_hi_search = M_in_choked
 
         try:
             val_lo = obj_sub(M_lo)
@@ -429,7 +454,7 @@ def solve_full_pipeline(
     # B1: Try fully supersonic branch
     try:
         res_choked_sup = evaluate_pipeline(
-            components, M_in_choked * 0.9999, P0_in, T0_in, gas,
+            components, M_in_choked, P0_in, T0_in, gas,
             force_supersonic_divergent=True
         )
         M_exit_sup = res_choked_sup[-1]["M_out"]
@@ -461,7 +486,7 @@ def solve_full_pipeline(
             try:
                 split_comps = split_pipeline_at_x(components, x_mid)
                 evaluate_pipeline(
-                    split_comps, M_in_choked * 0.9999, P0_in, T0_in, gas,
+                    split_comps, M_in_choked, P0_in, T0_in, gas,
                     force_supersonic_divergent=True
                 )
                 x_low = x_mid
@@ -472,7 +497,7 @@ def solve_full_pipeline(
         split_comps_crit = split_pipeline_at_x(components, x_shock_critical)
         try:
             res_crit = evaluate_pipeline(
-                split_comps_crit, M_in_choked * 0.9999, P0_in, T0_in, gas,
+                split_comps_crit, M_in_choked, P0_in, T0_in, gas,
                 force_supersonic_divergent=True
             )
         except ChokedError:
@@ -484,7 +509,7 @@ def solve_full_pipeline(
         # Evaluate the maximum backpressure capacity of the thermal throat
         comps_no_shock = [c for c in split_comps_crit if c.type != "normal_shock"]
         res_crit_sub = evaluate_pipeline(
-            comps_no_shock, M_in_choked * 0.9999, P0_in, T0_in, gas,
+            comps_no_shock, M_in_choked, P0_in, T0_in, gas,
             force_supersonic_divergent=False
         )
         P_sub_exit_crit = res_crit_sub[-1]["P_out"]
@@ -507,7 +532,7 @@ def solve_full_pipeline(
                 try:
                     sc = split_pipeline_at_x(components, x_shock)
                     r = evaluate_pipeline(
-                        sc, M_in_choked * 0.9999, P0_in, T0_in, gas,
+                        sc, M_in_choked, P0_in, T0_in, gas,
                         force_supersonic_divergent=False
                     )
                     return r[-1]["P_out"] - P_amb
@@ -520,7 +545,7 @@ def solve_full_pipeline(
                 )
                 split_comps = split_pipeline_at_x(components, x_shock_opt)
                 final_res = evaluate_pipeline(
-                    split_comps, M_in_choked * 0.9999, P0_in, T0_in, gas,
+                    split_comps, M_in_choked, P0_in, T0_in, gas,
                     force_supersonic_divergent=False
                 )
                 warnings.append("Thermal choking broken. Inserting single shock for backpressure.")
@@ -556,7 +581,7 @@ def solve_full_pipeline(
     def shock_obj(x_shock):
         sc = split_pipeline_at_x(components, x_shock)
         r = evaluate_pipeline(
-            sc, M_in_choked * 0.9999, P0_in, T0_in, gas,
+            sc, M_in_choked, P0_in, T0_in, gas,
             force_supersonic_divergent=True
         )
         return r[-1]["P_out"] - P_amb
@@ -600,7 +625,7 @@ def solve_full_pipeline(
                     
                     # Safe final evaluation (inside try-except to prevent UI crashes)
                     final_res = evaluate_pipeline(
-                        split_comps, M_in_choked * 0.9999, P0_in, T0_in, gas,
+                        split_comps, M_in_choked, P0_in, T0_in, gas,
                         force_supersonic_divergent=True
                     )
                     return final_res, warnings, split_comps
@@ -642,6 +667,7 @@ def generate_plot_data(
     boundaries = [0.0]
 
     current_x = 0.0
+    prev_A_out = 1.0  # Track area from previous component for normal_shock
     for comp, res in zip(components, results):
         L = comp.params.get("length", 1.0)
 
@@ -656,6 +682,29 @@ def generate_plot_data(
                 data["temperature"].append(res["T0_in"])
                 data["temperature_total"].append(res["T0_in"])
                 data["mass_flow"].append(0.0)
+            prev_A_out = res.get("A_out", prev_A_out)
+            current_x += L
+            boundaries.append(current_x)
+            continue
+
+        # Solid grain: lumped mass source, render over its physical length
+        if comp.type == "solid_grain":
+            P = res["P0_in"] * pressure_ratio(res["M_in"], gas.gamma)
+            T = res["T0_in"] * temperature_ratio(res["M_in"], gas.gamma)
+            grain_mdot = res.get("grain_mdot", 0.0)
+
+            x_vals = np.linspace(current_x, current_x + L, num_points)
+            for x in x_vals:
+                data["x"].append(x)
+                data["mach"].append(res["M_in"])
+                data["pressure"].append(P)
+                data["pressure_total"].append(res["P0_in"])
+                data["temperature"].append(T)
+                data["temperature_total"].append(res["T0_in"])
+                data["mass_flow"].append(grain_mdot)
+            
+            d_h = comp.params.get("d_h", 0.1)
+            prev_A_out = gas.area_from_diameter(d_h)
             current_x += L
             boundaries.append(current_x)
             continue
@@ -666,7 +715,9 @@ def generate_plot_data(
             T_out = res["T0_out"] * temperature_ratio(res["M_out"], gas.gamma)
             rho = gas.density(P_out, T_out)
             V = res["M_out"] * gas.speed_of_sound(T_out)
-            mass_flux = rho * V
+            # Use the area inherited from the previous component
+            A_shock = prev_A_out
+            mass_flow_val = rho * V * A_shock
 
             data["x"].append(current_x)
             data["mach"].append(res["M_out"])
@@ -674,7 +725,7 @@ def generate_plot_data(
             data["pressure_total"].append(res["P0_out"])
             data["temperature"].append(T_out)
             data["temperature_total"].append(res["T0_out"])
-            data["mass_flow"].append(mass_flux)
+            data["mass_flow"].append(mass_flow_val)
             continue
 
         x_vals = np.linspace(current_x, current_x + L, num_points)
@@ -730,7 +781,9 @@ def generate_plot_data(
                         M = res["M_in"]
                         P0 = res["P0_in"]
                         T0 = res["T0_in"]
-                        A_x = res.get("A_in", 1.0)
+                        # Still interpolate area correctly even at low Mach
+                        d_x = d_in + (d_out - d_in) * (dx / max(L, 1e-12))
+                        A_x = gas.area_from_diameter(d_x)
                     else:
                         A_star = A_in / area_mach_ratio(res["M_in"], gas.gamma)
                         d_x = d_in + (d_out - d_in) * (dx / max(L, 1e-12))
@@ -757,7 +810,10 @@ def generate_plot_data(
                     M = res["M_in"] + (res["M_out"] - res["M_in"]) * frac
                     P0 = res["P0_in"] + (res["P0_out"] - res["P0_in"]) * frac
                     T0 = res["T0_in"] + (res["T0_out"] - res["T0_in"]) * frac
-                    A_x = res.get("A_in", 1.0)
+                    # Interpolate area between A_in and A_out
+                    A_in_val = res.get("A_in", 1.0)
+                    A_out_val = res.get("A_out", A_in_val)
+                    A_x = A_in_val + (A_out_val - A_in_val) * frac
 
             P = P0 * pressure_ratio(M, gas.gamma)
             T = T0 * temperature_ratio(M, gamma=gas.gamma)
@@ -774,6 +830,7 @@ def generate_plot_data(
             data["temperature_total"].append(T0)
             data["mass_flow"].append(mass_flow_rate_val)
 
+        prev_A_out = res.get("A_out", res.get("A_in", 1.0))
         current_x += L
         boundaries.append(current_x)
 

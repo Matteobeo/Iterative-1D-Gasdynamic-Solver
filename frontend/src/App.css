@@ -171,6 +171,12 @@
   transition: transform 0.2s, box-shadow 0.2s;
 }
 
+.component-block.solid-grain-block {
+  border-left: 3px solid var(--comp-solid-grain);
+  background: linear-gradient(135deg, rgba(230, 81, 0, 0.06), var(--bg-card) 60%);
+  box-shadow: inset 0 0 20px rgba(230, 81, 0, 0.04);
+}
+
 .component-block:hover {
   box-shadow: var(--shadow-md);
 }
@@ -244,6 +250,11 @@
   border-top: 1px solid var(--border-color);
   display: flex;
   flex-direction: column;
+  transition: height 0.3s ease;
+}
+
+.results-panel:has(.charts-container.stacked) {
+  height: 70vh;
 }
 
 .results-header {
@@ -269,7 +280,8 @@
 }
 
 .charts-container.stacked .chart-wrapper {
-  min-height: 400px;
+  min-height: 250px;
+  max-height: 300px;
 }
 
 .chart-wrapper {

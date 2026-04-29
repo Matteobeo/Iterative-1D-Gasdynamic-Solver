@@ -31,7 +31,7 @@ export function FlowVisualization({ components, results }) {
       maxRadius = Math.max(maxRadius, r_in, r_out);
     });
 
-    const numParticles = 1000;
+    const numParticles = 400;
     
     // Reset delle particelle se la lunghezza non coincide o la struttura è vecchia
     if (!particles.current || particles.current.length !== numParticles || !particles.current[0].history) {
@@ -221,6 +221,10 @@ export function FlowVisualization({ components, results }) {
         const maxStep = totalL * 0.02; // Max 2% of duct length per frame
         const velocity = Math.min(maxStep, 0.001 + (m * 0.008));
         p.x += velocity;
+        
+        // Add random wobble to avoid perfectly horizontal banding
+        p.yOffset += (Math.random() - 0.5) * 0.03;
+        p.yOffset = Math.max(-0.95, Math.min(0.95, p.yOffset));
 
         if (p.x > totalL) {
           p.x = 0;
@@ -293,13 +297,52 @@ export function FlowVisualization({ components, results }) {
       drawWall(false);
       drawWall(true);
 
-      // 5. Draw Component Divisions and Labels
+      // 5. Draw Component Divisions, Labels & Special Markers
       let currentDivX = 0;
       ctx.setLineDash([4, 4]);
       components.forEach((comp, idx) => {
         const L = comp.params.length || 0;
         
-        if (L > 0) {
+        // --- Solid Grain: special inline marker ---
+        if (comp.type === 'solid_grain' && L > 0) {
+          const midX = currentDivX + L / 2;
+          const pxMid = marginX + (midX / totalL) * drawW;
+          const pxStart = marginX + (currentDivX / totalL) * drawW;
+          const pxEnd = marginX + ((currentDivX + L) / totalL) * drawW;
+          const r = maxRadius * yScale;
+
+          // Glow halo spanning the length (use 'lighter' blending to avoid dimming)
+          ctx.globalCompositeOperation = 'screen';
+          const grainGrad = ctx.createLinearGradient(pxStart, 0, pxEnd, 0);
+          grainGrad.addColorStop(0, 'rgba(255, 109, 0, 0)');
+          grainGrad.addColorStop(0.5, 'rgba(255, 109, 0, 0.15)');
+          grainGrad.addColorStop(1, 'rgba(255, 109, 0, 0)');
+          ctx.fillStyle = grainGrad;
+          ctx.fillRect(pxStart, h / 2 - r, pxEnd - pxStart, r * 2);
+          ctx.globalCompositeOperation = 'source-over';
+
+          // Label
+          ctx.fillStyle = '#ff6d00';
+          ctx.font = 'bold 9px Inter, sans-serif';
+          ctx.textAlign = 'center';
+          ctx.shadowBlur = 8;
+          ctx.shadowColor = '#ff6d00';
+          ctx.fillText('🔥 SOLID GRAIN', pxMid, marginY - 10);
+          ctx.shadowBlur = 0;
+
+          // Burn rate annotation
+          const rho_b = comp.params.rho_b || 1800;
+          const A_b = comp.params.A_b || 0.01;
+          const n = comp.params.n || 0.4;
+          const a_c = comp.params.a_coeff || 0.005;
+          const P_ref = (results.data.pressure && results.data.pressure[0]) || 0;
+          const mdot = A_b * rho_b * a_c * Math.pow(Math.max(P_ref, 1), n);
+          ctx.fillStyle = 'rgba(255, 109, 0, 0.8)';
+          ctx.font = '8px Inter, sans-serif';
+          ctx.fillText(`ṁ ≈ ${mdot.toExponential(2)} kg/s`, pxMid, h - marginY + 12);
+        }
+
+        if (L > 0 && comp.type !== 'solid_grain') {
           const startX = currentDivX;
           const midX = currentDivX + L / 2;
           
@@ -320,10 +363,22 @@ export function FlowVisualization({ components, results }) {
           ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
           ctx.font = '600 9px Inter, sans-serif';
           ctx.textAlign = 'center';
-          ctx.fillText(comp.type.toUpperCase().replace('_', ' '), pxMid, marginY - 10);
+          const labelText = comp.type.toUpperCase().replace(/_/g, ' ');
+          ctx.fillText(labelText, pxMid, marginY - 10);
+        } else if (L > 0 && idx > 0) {
+          // Still draw dividing line for solid_grain if it's not the first component
+          const startX = currentDivX;
+          const pxStart = marginX + (startX / totalL) * drawW;
+          ctx.beginPath();
+          ctx.moveTo(pxStart, marginY / 2);
+          ctx.lineTo(pxStart, h - marginY / 2);
+          ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+          ctx.lineWidth = 1;
+          ctx.stroke();
         }
         
         currentDivX += L;
+
       });
       ctx.setLineDash([]);
 
@@ -364,7 +419,7 @@ export function FlowVisualization({ components, results }) {
       />
       <div style={{ padding: '0.6rem 1.25rem', fontSize: '0.7rem', color: 'var(--text-muted)', display: 'flex', justifyContent: 'space-between', background: 'rgba(0,0,0,0.3)', borderTop: '1px solid rgba(255,255,255,0.05)', letterSpacing: '0.05em' }}>
         <span style={{ fontWeight: 700 }}>INLET</span>
-        <span style={{ fontStyle: 'italic', opacity: 0.6 }}>VELOCITY FIELD - COLOR $\propto$ TEMP - DENSITY $\propto$ PRESSURE</span>
+        <span style={{ fontStyle: 'italic', opacity: 0.6 }}>VELOCITY FIELD - COLOR &prop; TEMP - DENSITY &prop; PRESSURE</span>
         <span style={{ fontWeight: 700 }}>EXIT</span>
       </div>
     </div>

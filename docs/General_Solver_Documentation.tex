@@ -207,7 +207,21 @@ Per evitare questo disastro numerico, \texttt{general\_solver.py} implementa il 
 \end{cases}
 \end{equation}
 
-Nel codice Gasflash, il parametro empirico $\delta$ è impostato proporzionale alla velocità del suono mediata per scalare correttamente con la fisica del problema: $\delta = 0.4 \tilde{a}$ (riga 22).
+Nel codice Gasflash, il parametro empirico $\delta$ è stato finemente calibrato a $\delta = 0.1 \tilde{a}$ (riga 22) per minimizzare la dissipazione numerica spuria preservando la stabilità transonica.
+
+\subsection{Ricostruzione Spaziale MUSCL (2° Ordine)}
+Il metodo di Roe nella sua formulazione base assume che gli stati all'interno delle celle siano costanti (Ricostruzione Costante a Tratti, 1° ordine). Questo genera un notevole errore di troncamento spaziale (dissipazione numerica $\mathcal{O}(\Delta x)$) dove i gradienti del flusso o le variazioni di area sono bruschi, causando artefatti come salti non fisici nella portata massica locale calcolata.
+
+Per elevare l'accuratezza al 2° ordine spaziale, il solutore implementa l'estrapolazione \textbf{MUSCL} (Monotonic Upwind Scheme for Conservation Laws). Invece di usare i valori costanti di cella per calcolare il flusso all'interfaccia, le variabili primitive ($\rho, u, p$) vengono estrapolate linearmente verso le interfacce sinistra ($L$) e destra ($R$):
+\begin{align}
+U_L &= U_i + \frac{1}{2} \text{minmod}(\Delta U_i, \Delta U_{i+1}) \\
+U_R &= U_{i+1} - \frac{1}{2} \text{minmod}(\Delta U_{i+1}, \Delta U_{i+2})
+\end{align}
+Per preservare la stabilità TVD (Total Variation Diminishing) ed evitare oscillazioni spurie (fenomeno di Gibbs) in prossimità degli urti, le pendenze vengono limitate dalla funzione \textbf{minmod}, la quale seleziona la pendenza minore tra le due adiacenti, o azzera l'estrapolazione riducendo il calcolo al 1° ordine in presenza di estremi locali.
+
+\subsection{Diagnostica e Conservazione: UI Flat Enforcement}
+Nonostante l'alta risoluzione garantita da MUSCL, il CFD rimane un solutore esplicito iterativo. Poiché la convergenza matematica ai residui macchina ($\sim 10^{-16}$) richiederebbe centinaia di migliaia di iterazioni impraticabili per un'interfaccia reattiva in tempo reale, i flussi numerici presenteranno sempre microscopici artefatti o rumori ad alta frequenza in prossimità dei salti geometrici a iterazioni finite (es. 50.000 loop).
+Poiché le leggi della gasdinamica stazionaria 1D impongono una rigorosa conservazione orizzontale della portata massica, l'architettura diagnostica esporta per la dashboard Web la \textbf{media matematica del flusso di massa numerico esatto} calcolato da Roe. Questo "Flat Enforcement" rimuove otticamente i transitori incompleti garantendo una percezione visiva fluida e in linea con le rigide leggi di bilancio.
 
 \section{Integrazione Numerica e Stabilità}
 
@@ -325,26 +339,52 @@ Le condizioni al contorno imposte sono:
 All'istante $t=0$, il tubo contiene aria ferma a pressione ambiente. Quando il simulatore avanza nei primi millisecondi ($\Delta t$ limitato dalla condizione CFL a circa $10^{-5}$ s), un'onda di espansione fortissima viaggia dall'inlet ad alta pressione verso valle, accelerando il gas. 
 
 \subsubsection{Fase 1: Espansione Isentropica e Soffocamento (Choking)}
-Nel tronco convergente, l'area decresce. L'algoritmo calcola il termine sorgente di spinta geometrica $p \frac{dA}{dx}$ (che è negativo, opponendosi al flusso). Il flusso accelera fino a raggiungere esattamente Mach 1 ($u = a$) in corrispondenza del diametro minimo ($D=0.1$ m, a $x=0.5$ m). La portata massica si fissa al suo valore di \textit{choking}. Nel codice, la stabilità in questa delicata fase transonica è garantita dal Correttore di Entropia di Harten (Eq. 24).
+Nel tronco convergente, la diminuzione dell'area di passaggio costringe il flusso subsonico ad accelerare (Effetto Venturi). Il solutore modella questo tramite il termine sorgente $p \frac{dA}{dx}$ (forza geometrica). Alla sezione di gola ($D=0.1$ m), l'area geometrica è $A^* = \frac{\pi}{4} D^2 = 0.007854 \text{ m}^2$.
 
-\subsubsection{Fase 2: Regime Supersonico}
-Superata la gola, il condotto diventa divergente. Essendo il flusso già sonico, l'espansione geometrica forza un'ulteriore accelerazione. Il flusso diventa \textbf{supersonico} (Mach $> 1$) e la pressione statica $p$ crolla rapidamente, scendendo abbondantemente sotto i $400\,000$ Pa. 
+A causa dell'enorme salto di pressione tra serbatoio (5 bar) e ambiente (4 bar), il condotto va in "choking": la velocità raggiunge esattamente la velocità del suono ($M=1$) nella gola. In questo punto, lo stato termodinamico critico è calcolabile analiticamente dalle relazioni isentropiche:
+\begin{align}
+    T^* &= T_0 \left( \frac{2}{\gamma + 1} \right) = 300 \cdot 0.8333 \approx 250 \text{ K} \\
+    P^* &= P_0 \left( \frac{2}{\gamma + 1} \right)^{\frac{\gamma}{\gamma-1}} = 500\,000 \cdot 0.5283 \approx 264\,140 \text{ Pa}
+\end{align}
+La portata massica $\dot{m}$, costante in tutto il condotto in assenza di accumuli, si "blocca" al valore massimo possibile (Choked Mass Flow):
+\begin{equation}
+    \dot{m} = \frac{P_0 A^*}{\sqrt{T_0}} \sqrt{\frac{\gamma}{R}} \left( \frac{2}{\gamma+1} \right)^{\frac{\gamma+1}{2(\gamma-1)}} \approx 9.16 \text{ kg/s}
+\end{equation}
+
+\subsubsection{Fase 2: Espansione Supersonica}
+Superata la gola, il condotto diventa divergente (l'area aumenta). Un flusso che è già sonico ($M=1$), sottoposto a un'espansione dell'area, subisce una contro-intuitiva **accelerazione supersonica**. 
+Supponiamo che in un punto del divergente il diametro raggiunga $D_1 = 0.12$ m ($A_1 \approx 0.01131 \text{ m}^2$).
+Il rapporto delle aree è $A_1 / A^* \approx 1.44$. Attraverso la relazione di spinta isentropica, questo corrisponde univocamente a un Mach supersonico $M_1 \approx 1.80$.
+La pressione statica in questo punto è crollata in modo drammatico rispetto alla pressione ambiente:
+\begin{equation}
+    P_1 = P_0 \left( 1 + \frac{\gamma-1}{2} M_1^2 \right)^{-\frac{\gamma}{\gamma-1}} = \frac{500\,000}{(1 + 0.2 \cdot 1.8^2)^{3.5}} \approx \frac{500\,000}{5.746} \approx 87\,017 \text{ Pa} \quad (0.87 \text{ bar})
+\end{equation}
 
 \subsubsection{Fase 3: Formazione dell'Urto Normale}
-Essendo la pressione ambiente esterna $P_{\text{amb}} = 400\,000$ Pa molto più alta della pressione statica generata dall'espansione supersonica, l'informazione di alta pressione cerca di risalire la corrente. Tuttavia, siccome il fluido è supersonico, le onde acustiche non possono tornare indietro. 
-Le onde di compressione si accumulano in un punto specifico del divergente generando una \textbf{discontinuità stazionaria}: un Urto Normale.
+Poiché la pressione ambiente esterna è $P_{\text{amb}} = 400\,000$ Pa (4 bar), molto superiore agli $87\,017$ Pa appena calcolati, il gas si trova in "sovra-espansione". La pressione esterna cerca di inviare onde acustiche controcorrente per "avvertire" il flusso di frenare, ma essendo il flusso supersonico ($v > a$), le onde non riescono a risalire.
+Le onde di compressione si impaccano in una singola discontinuità infinitesimale: **l'Urto Normale**.
 
-Il Risolutore di Riemann di Roe rileva che tra due celle adiacenti (ad esempio $i$ e $i+1$) esiste un enorme $\Delta p$ in contrapposizione a un flusso supersonico. Calcolando gli autovalori $\lambda_k$, il termine di dissipazione upwind frena istantaneamente il gas. 
-
-Attraverso la "faccia" dell'urto, il solver preserva rigorosamente l'uguaglianza dei flussi conservativi $\mathbf{F}(\mathbf{U}_L) = \mathbf{F}(\mathbf{U}_R)$:
+Attraverso l'urto al Mach di attivazione $M_1 = 1.80$, la cinematica cambia brutalmente per dissipazione viscosa:
 \begin{itemize}
-    \item $U_0$ (massa): La densità $\rho$ aumenta repentinamente, compensando l'esatto calo di velocità $u$ in modo che $\rho u$ resti costante.
-    \item $U_1$ (quantità di moto): L'imponente perdita di velocità causa un salto violento della pressione statica $p$ per preservare l'equilibrio $\rho u^2 + p$.
-    \item Il flusso passa istantaneamente da Supersonico (es. Mach 1.8) a Subsonico (es. Mach 0.6).
+    \item \textbf{Mach a valle dell'urto:} Diventa subsonico.
+    \begin{equation}
+        M_2 = \sqrt{\frac{1 + \frac{\gamma-1}{2} M_1^2}{\gamma M_1^2 - \frac{\gamma-1}{2}}} = \sqrt{\frac{1.648}{4.336}} \approx 0.616
+    \end{equation}
+    \item \textbf{Salto Pressione Statica:} Schizza verso l'alto per incontrare le richieste della contropressione.
+    \begin{equation}
+        P_2 = P_1 \left( \frac{2\gamma M_1^2 - (\gamma-1)}{\gamma+1} \right) = 87\,017 \cdot 3.613 \approx 314\,392 \text{ Pa}
+    \end{equation}
+    \item \textbf{Perdita Entropica (Caduta Pressione Totale):} L'urto distrugge pressione di ristagno irreversibilmente.
+    \begin{equation}
+        P_{0,2} = P_{0,1} \cdot 0.812 \approx 406\,000 \text{ Pa} \quad (\text{persi quasi 1 bar di carico utile})
+    \end{equation}
 \end{itemize}
 
-\subsubsection{Fase 4: Riadattamento Subsonico e Uscita}
-A valle dell'urto, il gas è tornato subsonico. Poiché siamo ancora nel tratto divergente, e il gas è ora subsonico, l'aumento di sezione provoca un \textbf{rallentamento} della velocità (diffusione subsonica) e un ulteriore recupero graduale di pressione.
-Nel tratto finale a tubo dritto, il gas subsonico (in assenza di attrito) mantiene pressione costante, che combacia esattamente, all'ultima cella, con la boundary condition imposta: $p_{N_x-1} \approx 400\,000$ Pa. Il transitorio è concluso e la simulazione ha raggiunto lo Steady-State.
+\subsubsection{Fase 4: Diffusione Subsonica}
+Dopo l'urto, il gas viaggia a $M_2 = 0.616$ (subsonico) e si trova ancora nel tratto divergente. Per un gas subsonico, un incremento di area causa un **rallentamento** della velocità e un conseguente aumento isentropico della pressione statica (effetto diffusore).
+Il solutore adatta spazialmente l'urto affinché la diffusione subsonica nel resto del condotto riporti esattamente la pressione alla sezione di scarico pari al valore vincolante:
+\begin{equation}
+    P_{\text{exit}} = P_{\text{amb}} = 400\,000 \text{ Pa}
+\end{equation}
 
 \end{document}

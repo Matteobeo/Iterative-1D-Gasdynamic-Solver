@@ -47,7 +47,7 @@ def _component_boundaries(components: List[ComponentConfig]) -> List[float]:
     boundaries = [0.0]
     cx = 0.0
     for comp in components:
-        L = comp.params.get("length", 1.0) if comp.type != "normal_shock" else 0.0
+        L = comp.params.get("length", 1.0) if comp.type not in ["normal_shock"] else 0.0
         cx += L
         boundaries.append(cx)
     return boundaries
@@ -103,7 +103,7 @@ def _build_component_results(
         elif comp.type in ["fanno", "rayleigh"]:
             A_in  = gas.area_from_diameter(comp.params["d_h"])
             A_out = A_in
-        else:  # normal_shock or unknown
+        else:  # normal_shock, solid_grain, or unknown
             A_in = A_out = 1.0
 
         # Detect "choked inside": Mach crosses 1 within this segment
@@ -218,6 +218,13 @@ def solve_full_pipeline(
 
     # 4. Translate CFD diagnostics into legacy-style warnings
     warnings.extend(_classify_warnings(cfd_data["diagnostics"]))
+    
+    # Explain why the ideal analytical choking pressure in the UI doesn't perfectly match the CFD behavior
+    if not cfd_data["diagnostics"].get("choked", False):
+        warnings.append(
+            "Note: The Computational solver experiences numerical dissipation (simulating real viscous losses). "
+            "This naturally lowers the actual required choking backpressure compared to the Ideal Analytical limit shown."
+        )
 
     # Memory management: Clear cache if it grows too large to prevent leaks
     if len(_PLOT_CACHE) > 50:

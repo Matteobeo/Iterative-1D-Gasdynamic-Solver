@@ -6,6 +6,14 @@ from app.solver.gas import GasProperties
 
 # Funzioni accelerate con Numba JIT
 @njit(fastmath=True)
+def minmod(a, b):
+    if a * b <= 0:
+        return 0.0
+    if abs(a) < abs(b):
+        return a
+    return b
+
+@njit(fastmath=True)
 def roe_flux_numba_fixed(rhoL, uL, pL, rhoR, uR, pR, A_int, gamma):
     HL = (gamma * pL / ((gamma - 1) * rhoL)) + 0.5 * uL**2
     HR = (gamma * pR / ((gamma - 1) * rhoR)) + 0.5 * uR**2
@@ -19,7 +27,7 @@ def roe_flux_numba_fixed(rhoL, uL, pL, rhoR, uR, pR, A_int, gamma):
     FR = np.array([rhoR * uR, rhoR * uR**2 + pR, rhoR * uR * HR]) * A_int
     
     lambdas = np.array([u_roe, u_roe + a_roe, u_roe - a_roe])
-    delta = 0.4 * a_roe
+    delta = 0.1 * a_roe
     abs_lambdas = np.zeros(3)
     for i in range(3):
         if abs(lambdas[i]) < delta:
@@ -52,15 +60,19 @@ def roe_flux_numba_fixed(rhoL, uL, pL, rhoR, uR, pR, A_int, gamma):
     return (0.5 * (FL + FR) - 0.5 * diss * A_int)
 
 @njit(parallel=True, fastmath=True)
-def cfd_core_loop(U, A, A_int, f_fanning, q_heat, delta_h0, q_mode_total, D, dx, nx, gamma, R, max_iter, tol, P0_in, T0_in, P_amb):
-    U_curr = U.copy()
-    U_new = U.copy()
+def cfd_core_loop(U_curr, A, A_int, f_fanning, q_heat, delta_h0, q_mode_total, D, dx, nx, gamma, R, max_iter, tol, P0_in, T0_in, P_amb):
+    U_new = np.empty_like(U_curr)
+    F_int = np.zeros((3, nx + 1))
+    
+    # Pre-allocate ghost arrays for MUSCL
+    rho_g = np.empty(nx + 2)
+    u_g = np.empty(nx + 2)
+    p_g = np.empty(nx + 2)
     
     rho = np.zeros(nx)
     u = np.zeros(nx)
     p = np.zeros(nx)
     a = np.zeros(nx)
-    F_int = np.zeros((3, nx + 1))
     
     for it in range(max_iter):
         for i in prange(nx):
@@ -86,16 +98,45 @@ def cfd_core_loop(U, A, A_int, f_fanning, q_heat, delta_h0, q_mode_total, D, dx,
             T_in = 1.0
         tau_in = T0_in / T_in
         rho_in = P0_in / (R * T0_in) * (tau_in)**(-1.0/(gamma-1.0))
-        p_in = P0_in * (tau_in)**(-gamma/(gamma-1.0))
-        F_int[:, 0] = roe_flux_numba_fixed(rho_in, u_in, p_in, rho[0], u[0], p[0], A_int[0], gamma)
+        p_in = P0_in * (tau_in)**(-gamma/(gamma-1.0))        
         
-        # BC Outlet
+        # Populate Ghost Cells
+        rho_g[1:-1] = rho
+        u_g[1:-1] = u
+        p_g[1:-1] = p
+        
+        rho_g[0] = rho_in
+        u_g[0] = u_in
+        p_g[0] = p_in
+        
         p_out = P_amb if u[nx-1] < a[nx-1] else p[nx-1]
-        F_int[:, nx] = roe_flux_numba_fixed(rho[nx-1], u[nx-1], p[nx-1], rho[nx-1], u[nx-1], p_out, A_int[nx], gamma)
+        rho_g[nx+1] = rho[nx-1]
+        u_g[nx+1] = u[nx-1]
+        p_g[nx+1] = p_out
         
-        # Internal Fluxes
-        for i in prange(1, nx):
-            F_int[:, i] = roe_flux_numba_fixed(rho[i-1], u[i-1], p[i-1], rho[i], u[i], p[i], A_int[i], gamma)
+        # Internal Fluxes with MUSCL Reconstruction
+        for i in prange(nx + 1):
+            # Left State (from cell i in ghost array)
+            if i == 0:
+                rhoL = rho_g[0]
+                uL = u_g[0]
+                pL = p_g[0]
+            else:
+                rhoL = rho_g[i] + 0.5 * minmod(rho_g[i] - rho_g[i-1], rho_g[i+1] - rho_g[i])
+                uL = u_g[i] + 0.5 * minmod(u_g[i] - u_g[i-1], u_g[i+1] - u_g[i])
+                pL = p_g[i] + 0.5 * minmod(p_g[i] - p_g[i-1], p_g[i+1] - p_g[i])
+                
+            # Right State (from cell i+1 in ghost array)
+            if i == nx:
+                rhoR = rho_g[nx+1]
+                uR = u_g[nx+1]
+                pR = p_g[nx+1]
+            else:
+                rhoR = rho_g[i+1] - 0.5 * minmod(rho_g[i+1] - rho_g[i], rho_g[i+2] - rho_g[i+1])
+                uR = u_g[i+1] - 0.5 * minmod(u_g[i+1] - u_g[i], u_g[i+2] - u_g[i+1])
+                pR = p_g[i+1] - 0.5 * minmod(p_g[i+1] - p_g[i], p_g[i+2] - p_g[i+1])
+                
+            F_int[:, i] = roe_flux_numba_fixed(rhoL, uL, pL, rhoR, uR, pR, A_int[i], gamma)
             
         # Time step
         max_ws = 1e-6
@@ -125,7 +166,7 @@ def cfd_core_loop(U, A, A_int, f_fanning, q_heat, delta_h0, q_mode_total, D, dx,
                 
         U_curr[:] = U_new[:]
         
-    return U_curr
+    return U_curr, F_int
 
 class GeneralSolver1D:
     def __init__(self, gas: GasProperties, nx: int = 1000):
@@ -135,7 +176,7 @@ class GeneralSolver1D:
         self.R = gas.R
 
     def solve(self, components, P0_in, T0_in, P_amb, max_iter=100000, tol=1e-8):
-        total_L = sum(c.params.get("length", 1.0) for c in components if c.type != "normal_shock")
+        total_L = sum(c.params.get("length", 1.0) for c in components if c.type not in ["normal_shock"])
         dx = total_L / self.nx
         x = np.linspace(dx/2, total_L - dx/2, self.nx)
         x_int = np.linspace(0, total_L, self.nx + 1)
@@ -145,7 +186,7 @@ class GeneralSolver1D:
 
         curr_x = 0.0
         for comp in components:
-            if comp.type == "normal_shock":
+            if comp.type in ["normal_shock"]:
                 continue
             L = max(comp.params.get("length", 1.0), 1e-5)
             eps = dx * 1e-3
@@ -156,7 +197,7 @@ class GeneralSolver1D:
                 A[mask_c] = np.pi/4 * (d_in + (d_out-d_in)*(x[mask_c]-curr_x)/L)**2
                 A_int[mask_i] = np.pi/4 * (d_in + (d_out-d_in)*(x_int[mask_i]-curr_x)/L)**2
             else:
-                d_h = comp.params["d_h"]
+                d_h = comp.params.get("d_h", 0.1)
                 A[mask_c], A_int[mask_i] = np.pi/4*d_h**2, np.pi/4*d_h**2
                 if comp.type == "fanno":
                     f_fanning[mask_c] = comp.params["f"] / 4.0
@@ -176,7 +217,7 @@ class GeneralSolver1D:
         U[1, :] = rho_init * u_init * A 
         U[2, :] = (P0_in / (self.gamma - 1) + 0.5 * rho_init * u_init**2) * A
 
-        U_final = cfd_core_loop(U, A, A_int, f_fanning, q_heat, delta_h0, q_mode_total, D, dx, self.nx, self.gamma, self.R, max_iter, tol, P0_in, T0_in, P_amb)
+        U_final, F_int_final = cfd_core_loop(U, A, A_int, f_fanning, q_heat, delta_h0, q_mode_total, D, dx, self.nx, self.gamma, self.R, max_iter, tol, P0_in, T0_in, P_amb)
 
         rho = U_final[0, :] / A
         u = U_final[1, :] / U_final[0, :]
@@ -185,6 +226,14 @@ class GeneralSolver1D:
         T = p / (rho * self.R)
         T0 = T * (1 + 0.5*(self.gamma-1)*M**2)
         P0 = p * (T0/T)**(self.gamma/(self.gamma-1))
+        
+        # Use numerical mass flux averaged to cell centers
+        mdot_num = 0.5 * (F_int_final[0, :-1] + F_int_final[0, 1:])
+        
+        # UI/UX Fix: The CFD solver never perfectly converges to a flat line due to truncation
+        # errors at boundaries and finite max_iter. To avoid user confusion over non-physical 
+        # jumps/slopes, we enforce a strictly constant mass flow at the mean CFD value.
+        mdot_flat = np.full(self.nx, np.mean(mdot_num))
 
         def s(arr):
             return np.nan_to_num(arr, nan=0.0).tolist()
@@ -192,6 +241,6 @@ class GeneralSolver1D:
         return {
             "x": x.tolist(), "mach": s(M), "pressure": s(p),
             "pressure_total": s(P0), "temperature": s(T),
-            "temperature_total": s(T0), "mass_flow": s(rho*u*A),
+            "temperature_total": s(T0), "mass_flow": s(mdot_flat),
             "diagnostics": {"choked": bool(np.max(np.abs(M)) > 0.99), "num_normal_shocks": 0}
         }

@@ -46,6 +46,19 @@ export const COMPONENT_TYPES = {
       </svg>
     ),
     defaultParams: { d_h: 0.05, length: 0.5, q: 50000 }
+  },
+  solid_grain: {
+    label: "Solid Grain (Combustor)",
+    color: "var(--comp-solid-grain)",
+    icon: (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="3" y="6" width="18" height="12" rx="2" />
+        <path d="M9 18v-4c0-1 1-2 3-2s3 1 3 2v4" stroke="#ff6d00" strokeWidth="1.8" />
+        <circle cx="12" cy="9" r="1.5" fill="#ff6d00" stroke="none" />
+        <path d="M10 8c0-2 4-2 4 0" stroke="#ff6d00" strokeWidth="1" opacity="0.6" />
+      </svg>
+    ),
+    defaultParams: { length: 0.5, d_h: 0.1, rho_b: 1800, A_b: 0.01, n: 0.4, a_coeff: 0.005, T_b: 300 }
   }
 };
 
