@@ -13,6 +13,9 @@ function App() {
     P_amb: 101325,
     gamma: 1.4,
     R: 287.0,
+    a: 0.0,
+    b: 0.0,
+    is_real: false,
     solver_type: 'general' // 'analytical' or 'general' (BETA)
   });
 

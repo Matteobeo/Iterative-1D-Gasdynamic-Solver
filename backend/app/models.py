@@ -79,6 +79,9 @@ class SimulationRequest(BaseModel):
     P_amb: float
     gamma: float = 1.4
     R: float = 287.0
+    is_real: bool = False
+    a: float = 0.0
+    b: float = 0.0
     components: List[ComponentConfig]
     solver_type: str = "analytical" # "analytical" or "euler"
 

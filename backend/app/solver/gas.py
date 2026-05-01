@@ -31,3 +31,12 @@ class GasProperties:
     def diameter_from_area(self, A: float) -> float:
         """Diameter from circular cross-section area."""
         return np.sqrt(4 * A / np.pi)
+
+
+class RealGasProperties(GasProperties):
+    """Real gas properties container using Van der Waals EOS."""
+
+    def __init__(self, gamma: float = 1.4, R: float = 287.0, a: float = 0.0, b: float = 0.0):
+        super().__init__(gamma, R)
+        self.a = a  # Van der Waals 'a' parameter
+        self.b = b  # Van der Waals 'b' parameter

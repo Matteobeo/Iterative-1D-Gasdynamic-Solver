@@ -59,6 +59,17 @@ export function Sidebar({ config, setConfig, onAddComponent, onSimulate, loading
             <span>🌬️</span> Gas Properties
           </h2>
           <div className="glass-card" style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+            <div className="input-group" style={{ flexDirection: 'row', alignItems: 'center', gap: '0.5rem' }}>
+              <input 
+                type="checkbox" 
+                id="is_real"
+                checked={config.is_real}
+                onChange={e => handleConfigChange('is_real', e.target.checked)}
+                style={{ width: 'auto' }}
+              />
+              <label htmlFor="is_real" style={{ cursor: 'pointer', margin: 0, fontSize: '0.85rem', fontWeight: 600 }}>Real Gas (Van der Waals)</label>
+            </div>
+
             <div className="input-group">
               <label>Specific Heat Ratio (γ)</label>
               <input
@@ -81,6 +92,33 @@ export function Sidebar({ config, setConfig, onAddComponent, onSimulate, loading
                 <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>J/kgK</span>
               </div>
             </div>
+
+            {config.is_real && (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginTop: '0.25rem', padding: '0.5rem', backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: '8px' }}>
+                <div className="input-group">
+                  <label style={{ fontSize: '0.7rem' }}>VdW 'a'</label>
+                  <input
+                    type="number"
+                    step="0.001"
+                    className="input-field"
+                    value={config.a}
+                    onChange={e => handleConfigChange('a', e.target.value)}
+                    style={{ fontSize: '0.75rem', height: '28px' }}
+                  />
+                </div>
+                <div className="input-group">
+                  <label style={{ fontSize: '0.7rem' }}>VdW 'b'</label>
+                  <input
+                    type="number"
+                    step="0.00001"
+                    className="input-field"
+                    value={config.b}
+                    onChange={e => handleConfigChange('b', e.target.value)}
+                    style={{ fontSize: '0.75rem', height: '28px' }}
+                  />
+                </div>
+              </div>
+            )}
           </div>
         </div>
 

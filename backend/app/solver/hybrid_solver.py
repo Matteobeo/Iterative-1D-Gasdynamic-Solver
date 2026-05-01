@@ -287,6 +287,8 @@ def generate_plot_data(
         "temperature_total": cfd_data["temperature_total"],
         "mass_flow":        cfd_data["mass_flow"],
     }
+    if "real" in cfd_data:
+        data["real"] = cfd_data["real"]
     return data, boundaries
 
 

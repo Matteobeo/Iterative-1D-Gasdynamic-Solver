@@ -38,23 +38,37 @@ export function ResultsDashboard({ results }) {
   }));
 
   const pressureData = [
-    { x: d.x, y: d.pressure, type: 'scatter', mode: 'lines', name: 'Static P', line: { color: '#3b82f6', width: 2 } },
-    { x: d.x, y: d.pressure_total, type: 'scatter', mode: 'lines', name: 'Total P0', line: { color: '#8b5cf6', width: 2, dash: 'dash' } }
+    { x: d.x, y: d.pressure, type: 'scatter', mode: 'lines', name: 'Static P (Ideal)', line: { color: '#3b82f6', width: 2 } },
+    { x: d.x, y: d.pressure_total, type: 'scatter', mode: 'lines', name: 'Total P0 (Ideal)', line: { color: '#8b5cf6', width: 2, dash: 'dash' } }
   ];
+  if (d.real) {
+    pressureData.push({ x: d.x, y: d.real.pressure, type: 'scatter', mode: 'lines', name: 'Static P (Real)', line: { color: 'rgba(59, 130, 246, 0.5)', width: 3 } });
+    pressureData.push({ x: d.x, y: d.real.pressure_total, type: 'scatter', mode: 'lines', name: 'Total P0 (Real)', line: { color: 'rgba(139, 92, 246, 0.5)', width: 3, dash: 'dash' } });
+  }
 
   const machData = [
-    { x: d.x, y: d.mach, type: 'scatter', mode: 'lines', name: 'Mach', line: { color: '#10b981', width: 2 } },
+    { x: d.x, y: d.mach, type: 'scatter', mode: 'lines', name: 'Mach (Ideal)', line: { color: '#10b981', width: 2 } },
     { x: [Math.min(...d.x), Math.max(...d.x)], y: [1, 1], type: 'scatter', mode: 'lines', name: 'M=1', line: { color: '#ef4444', width: 1, dash: 'dot' } }
   ];
+  if (d.real) {
+    machData.push({ x: d.x, y: d.real.mach, type: 'scatter', mode: 'lines', name: 'Mach (Real)', line: { color: 'rgba(16, 185, 129, 0.5)', width: 3 } });
+  }
 
   const tempData = [
-    { x: d.x, y: d.temperature, type: 'scatter', mode: 'lines', name: 'Static T', line: { color: '#f59e0b', width: 2 } },
-    { x: d.x, y: d.temperature_total, type: 'scatter', mode: 'lines', name: 'Total T0', line: { color: '#ec4899', width: 2, dash: 'dash' } }
+    { x: d.x, y: d.temperature, type: 'scatter', mode: 'lines', name: 'Static T (Ideal)', line: { color: '#f59e0b', width: 2 } },
+    { x: d.x, y: d.temperature_total, type: 'scatter', mode: 'lines', name: 'Total T0 (Ideal)', line: { color: '#ec4899', width: 2, dash: 'dash' } }
   ];
+  if (d.real) {
+    tempData.push({ x: d.x, y: d.real.temperature, type: 'scatter', mode: 'lines', name: 'Static T (Real)', line: { color: 'rgba(245, 158, 11, 0.5)', width: 3 } });
+    tempData.push({ x: d.x, y: d.real.temperature_total, type: 'scatter', mode: 'lines', name: 'Total T0 (Real)', line: { color: 'rgba(236, 72, 153, 0.5)', width: 3, dash: 'dash' } });
+  }
 
   const massData = [
-    { x: d.x, y: d.mass_flow, type: 'scatter', mode: 'lines', name: 'Mass Flow', line: { color: '#06b6d4', width: 2 } }
+    { x: d.x, y: d.mass_flow, type: 'scatter', mode: 'lines', name: 'Mass Flow (Ideal)', line: { color: '#06b6d4', width: 2 } }
   ];
+  if (d.real) {
+    massData.push({ x: d.x, y: d.real.mass_flow, type: 'scatter', mode: 'lines', name: 'Mass Flow (Real)', line: { color: 'rgba(6, 182, 212, 0.5)', width: 3 } });
+  }
 
   const [isStacked, setIsStacked] = React.useState(false);
 

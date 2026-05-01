@@ -190,7 +190,11 @@ async def simulate(request: SimulationRequest):
     run the gas dynamics solver, and return results.
     """
     try:
-        gas = GasProperties(gamma=request.gamma, R=request.R)
+        if request.is_real:
+            from app.solver.gas import RealGasProperties
+            gas = RealGasProperties(gamma=request.gamma, R=request.R, a=request.a, b=request.b)
+        else:
+            gas = GasProperties(gamma=request.gamma, R=request.R)
         
         if not request.components:
             raise ValueError("No components provided.")

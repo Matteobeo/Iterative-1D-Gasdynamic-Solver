@@ -303,23 +303,26 @@ export function FlowVisualization({ components, results }) {
       components.forEach((comp, idx) => {
         const L = comp.params.length || 0;
         
-        // --- Solid Grain: special inline marker ---
-        if (comp.type === 'solid_grain' && L > 0) {
-          const midX = currentDivX + L / 2;
-          const pxMid = marginX + (midX / totalL) * drawW;
-          const pxStart = marginX + (currentDivX / totalL) * drawW;
-          const pxEnd = marginX + ((currentDivX + L) / totalL) * drawW;
-          const r = maxRadius * yScale;
+          // --- Solid Grain: special inline marker ---
+          if (comp.type === 'solid_grain' && L > 0) {
+            const midX = currentDivX + L / 2;
+            const pxMid = marginX + (midX / totalL) * drawW;
+            const pxStart = marginX + (currentDivX / totalL) * drawW;
+            const pxEnd = marginX + ((currentDivX + L) / totalL) * drawW;
+            const r = maxRadius * yScale;
 
-          // Glow halo spanning the length (use 'lighter' blending to avoid dimming)
-          ctx.globalCompositeOperation = 'screen';
-          const grainGrad = ctx.createLinearGradient(pxStart, 0, pxEnd, 0);
-          grainGrad.addColorStop(0, 'rgba(255, 109, 0, 0)');
-          grainGrad.addColorStop(0.5, 'rgba(255, 109, 0, 0.15)');
-          grainGrad.addColorStop(1, 'rgba(255, 109, 0, 0)');
-          ctx.fillStyle = grainGrad;
-          ctx.fillRect(pxStart, h / 2 - r, pxEnd - pxStart, r * 2);
-          ctx.globalCompositeOperation = 'source-over';
+            // FIX: Ensure coordinates are finite to prevent Canvas crash
+            if (isFinite(pxStart) && isFinite(pxEnd) && isFinite(pxEnd - pxStart) && (pxEnd - pxStart) !== 0) {
+                // Glow halo spanning the length (use 'lighter' blending to avoid dimming)
+                ctx.globalCompositeOperation = 'screen';
+                const grainGrad = ctx.createLinearGradient(pxStart, 0, pxEnd, 0);
+                grainGrad.addColorStop(0, 'rgba(255, 109, 0, 0)');
+                grainGrad.addColorStop(0.5, 'rgba(255, 109, 0, 0.15)');
+                grainGrad.addColorStop(1, 'rgba(255, 109, 0, 0)');
+                ctx.fillStyle = grainGrad;
+                ctx.fillRect(pxStart, h / 2 - r, pxEnd - pxStart, r * 2);
+                ctx.globalCompositeOperation = 'source-over';
+            }
 
           // Label
           ctx.fillStyle = '#ff6d00';
