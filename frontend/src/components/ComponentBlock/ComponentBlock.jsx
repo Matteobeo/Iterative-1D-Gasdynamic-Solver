@@ -57,13 +57,39 @@ export function ComponentBlock({ id, component, index, onUpdate, onRemove }) {
       </div>
       
       <div className="comp-params">
+        {component.type === 'solid_grain' && (
+          <div className="param-group" style={{ gridColumn: '1 / -1', marginBottom: '8px' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', color: 'var(--text-color)' }}>
+              <input 
+                type="checkbox" 
+                checked={component.params.only_mass_addition === 1}
+                onChange={(e) => handleParamChange('only_mass_addition', e.target.checked ? 1 : 0)}
+              />
+              Only Mass Addition (Fixed Rate)
+            </label>
+          </div>
+        )}
+        
         {Object.entries(component.params).map(([key, val]) => {
+          if (key === 'only_mass_addition') return null;
+
+          const isOnlyMass = component.params.only_mass_addition === 1;
+          const isVieilleParam = ['rho_b', 'A_b', 'n', 'a_coeff'].includes(key);
+          const isDisabled = isOnlyMass && isVieilleParam;
+          
+          if (isOnlyMass && key === 'target_mass_flow') {
+            // render
+          } else if (!isOnlyMass && key === 'target_mass_flow') {
+            return null; // hide
+          }
+
           const SOLID_GRAIN_LABELS = {
             rho_b: { label: 'ρ_b (Density)', unit: 'kg/m³' },
             A_b: { label: 'A_b (Burn Area)', unit: 'm²' },
             n: { label: 'n (Press. Exp.)', unit: '' },
             a_coeff: { label: 'a (Temp. Coeff.)', unit: '' },
             T_b: { label: 'T_b (Grain Temp.)', unit: 'K' },
+            target_mass_flow: { label: 'Mass Flow', unit: 'kg/s' },
           };
 
           let displayLabel = key;
@@ -79,7 +105,7 @@ export function ComponentBlock({ id, component, index, onUpdate, onRemove }) {
           }
 
           return (
-            <div key={key} className="param-group">
+            <div key={key} className="param-group" style={{ opacity: isDisabled ? 0.4 : 1, pointerEvents: isDisabled ? 'none' : 'auto' }}>
               <label>
                 {displayLabel} {unitLabel && <span style={{ color: 'var(--text-muted)', fontSize: '0.65rem' }}>{unitLabel}</span>}
               </label>
@@ -89,6 +115,7 @@ export function ComponentBlock({ id, component, index, onUpdate, onRemove }) {
                 className="input-field" 
                 value={val}
                 onChange={(e) => handleParamChange(key, e.target.value)}
+                disabled={isDisabled}
               />
             </div>
           );

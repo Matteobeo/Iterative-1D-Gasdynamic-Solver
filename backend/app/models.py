@@ -93,4 +93,5 @@ class SimulationResponse(BaseModel):
     data: Optional[Union[SimulationData, Dict[str, List[float]]]] = None
     shock_location: Optional[float] = None
     component_boundaries: List[float] = []
+    component_labels: List[str] = []
     summary: Optional[Dict[str, Any]] = None

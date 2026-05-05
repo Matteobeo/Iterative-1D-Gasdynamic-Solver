@@ -177,8 +177,9 @@ def solve_full_pipeline(
     T0_in: float,
     P_amb: float,
     gas: GasProperties,
-    nx: int = 1000,
-    max_iter: int = 50000,
+    request_hash: str,
+    nx: int = 400,
+    max_iter: int = 150000,
     tol: float = 1e-7,
 ) -> Tuple[List[Dict[str, Any]], List[str], List[ComponentConfig]]:
     """
@@ -232,8 +233,8 @@ def solve_full_pipeline(
 
     # Stash the raw CFD data so generate_plot_data can reuse it without
     # re-running the solver. We attach it to a module-level cache keyed by
-    # the components id (cheap and avoids signature changes).
-    _PLOT_CACHE[id(components)] = cfd_data
+    # a unique hash to avoid Python id() memory reuse collisions.
+    _PLOT_CACHE[request_hash] = cfd_data
 
     return results, warnings, components
 
@@ -242,25 +243,25 @@ def solve_full_pipeline(
 # Plot data generation (returns the CFD field directly)
 # ===========================================================================
 
-# Cache keyed by id(components) so consecutive calls don't re-run CFD.
-_PLOT_CACHE: Dict[int, Dict[str, Any]] = {}
-
+    # Cache keyed by uuid to avoid consecutive calls re-running CFD.
+_PLOT_CACHE: Dict[str, Dict[str, Any]] = {}
 
 def generate_plot_data(
     components: List[ComponentConfig],
     results: List[Dict[str, Any]],
     gas: GasProperties,
+    request_hash: str,
     num_points: int = 50,
-) -> Tuple[Dict[str, List[float]], List[float]]:
+) -> Tuple[Dict[str, List[float]], List[float], List[str]]:
     """
     Return high-resolution plotting arrays (x, M, P, T, P0, T0, mass_flow)
-    plus component boundary x-positions.
+    plus component boundary x-positions and labels.
 
     If a CFD solution has already been computed for this components list
     (via solve_full_pipeline), it is reused. Otherwise, a fresh CFD run is
     triggered using stagnation conditions inferred from the first result.
     """
-    cfd_data = _PLOT_CACHE.get(id(components))
+    cfd_data = _PLOT_CACHE.get(request_hash)
 
     if cfd_data is None:
         # Fallback: run CFD using results[0] as boundary conditions
@@ -289,7 +290,14 @@ def generate_plot_data(
     }
     if "real" in cfd_data:
         data["real"] = cfd_data["real"]
-    return data, boundaries
+        
+    # Generate human-readable labels for components
+    labels = []
+    for comp in components:
+        label = comp.type.replace("_", " ").title()
+        labels.append(label)
+
+    return data, boundaries, labels
 
 
 # ===========================================================================

@@ -58,7 +58,7 @@ export const COMPONENT_TYPES = {
         <path d="M10 8c0-2 4-2 4 0" stroke="#ff6d00" strokeWidth="1" opacity="0.6" />
       </svg>
     ),
-    defaultParams: { length: 0.5, d_h: 0.1, rho_b: 1800, A_b: 0.01, n: 0.4, a_coeff: 0.005, T_b: 300 }
+    defaultParams: { length: 0.5, d_h: 0.1, rho_b: 1800, A_b: 0.01, n: 0.4, a_coeff: 0.005, T_b: 300, only_mass_addition: 0, target_mass_flow: 2.0 }
   }
 };
 

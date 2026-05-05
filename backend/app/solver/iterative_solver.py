@@ -170,13 +170,21 @@ def evaluate_component(
         # It injects hot gas mass at the local pressure.
         rho_b = comp.params["rho_b"]
         A_b = comp.params["A_b"]
-        n_exp = comp.params["n"]
-        a_coeff = comp.params["a_coeff"]
         T_b = comp.params.get("T_b", 300.0)
+
+        only_mass = comp.params.get("only_mass_addition", 0)
+        if only_mass == 1:
+            target_mdot = comp.params.get("target_mass_flow", 2.0)
+            a_coeff = target_mdot / (rho_b * A_b) if (rho_b * A_b) > 0 else 0.0
+            n_exp = 0.0
+        else:
+            n_exp = comp.params["n"]
+            a_coeff = comp.params["a_coeff"]
 
         # Use upstream total pressure as reference for burn rate
         P_ref = P0_in * pressure_ratio(M_in, gas.gamma)
         grain_mdot = A_b * rho_b * a_coeff * (P_ref ** n_exp)
+
 
         out.update({
             "M_out": M_in,  # Mach unchanged (source, not duct)
@@ -834,4 +842,10 @@ def generate_plot_data(
         current_x += L
         boundaries.append(current_x)
 
-    return data, boundaries
+    # Generate human-readable labels for components
+    labels = []
+    for comp in components:
+        label = comp.type.replace("_", " ").title()
+        labels.append(label)
+
+    return data, boundaries, labels

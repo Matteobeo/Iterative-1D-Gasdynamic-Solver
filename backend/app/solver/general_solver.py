@@ -342,12 +342,21 @@ class GeneralSolver1D:
                 d_h = comp.params.get("d_h", 0.1)
                 A[mask_c], A_int[mask_i] = np.pi/4*d_h**2, np.pi/4*d_h**2
                 
-                # Vieille's Law Params
-                rho_s = comp.params.get("rho_propellant", 1800.0)
-                A_b = comp.params.get("burn_area", 0.1)
-                a_coeff = comp.params.get("a_coeff", 0.02) # [m/(s*MPa^n)] standard
-                n_exp = comp.params.get("n_exp", 0.5)
-                T_f = comp.params.get("T_flame", 3000.0)
+                # Vieille's Law Params (Keys matched with frontend/models)
+                rho_s = comp.params.get("rho_b", 1800.0)
+                A_b = comp.params.get("A_b", 0.1)
+                T_f = comp.params.get("T_b", 3000.0)
+                
+                only_mass = comp.params.get("only_mass_addition", 0)
+                if only_mass == 1:
+                    target_mdot = comp.params.get("target_mass_flow", 2.0)
+                    # Fixed mass addition: mdot = rho_s * A_b * a_coeff * P^0
+                    # Therefore: a_coeff = mdot / (rho_s * A_b)
+                    a_coeff = target_mdot / (rho_s * A_b) if (rho_s * A_b) > 0 else 0.0
+                    n_exp = 0.0
+                else:
+                    a_coeff = comp.params.get("a_coeff", 0.02) # [m/(s*MPa^n)] standard
+                    n_exp = comp.params.get("n", 0.5)
                 
                 grain_a[mask_c] = a_coeff
                 grain_n[mask_c] = n_exp
@@ -383,6 +392,14 @@ class GeneralSolver1D:
         mdot_f_id = U_f_id[1, :]
         mass_error = np.std(mdot_f_id) / (np.mean(mdot_f_id) + 1e-10) * 100
         
+        # --- Smooth Analytical Mass Flow for Plotting ---
+        mdot_smooth_id = np.zeros(nx)
+        mdot_in_id = np.median(mdot_f_id[:max(1, nx//10)])
+        mdot_smooth_id[0] = mdot_in_id
+        for i in range(1, nx):
+            S_m = grain_S_m_factor[i] * grain_a[i] * (p_id[i]/1e6)**grain_n[i]
+            mdot_smooth_id[i] = mdot_smooth_id[i-1] + S_m * dx_arr[i]
+        
         def s(arr): return np.nan_to_num(arr, nan=0.0).tolist()
         
         # Miglioramento Diagnostica
@@ -400,7 +417,7 @@ class GeneralSolver1D:
             "pressure_total": s(P0_id), 
             "temperature": s(T_id), 
             "temperature_total": s(T0_id), 
-            "mass_flow": s(mdot_f_id), 
+            "mass_flow": s(mdot_smooth_id), 
             "diagnostics": {
                 "choked": bool(np.max(np.abs(M_id)) > 0.98), 
                 "num_normal_shocks": num_shocks,
@@ -435,13 +452,21 @@ class GeneralSolver1D:
             P0_re = p_re * (T0_re / T_re)**(gamma_eff / (gamma_eff - 1))
             mdot_f_re = U_f_re[1, :]
             
+            # --- Smooth Analytical Mass Flow for Plotting (Real Gas) ---
+            mdot_smooth_re = np.zeros(nx)
+            mdot_in_re = np.median(mdot_f_re[:max(1, nx//10)])
+            mdot_smooth_re[0] = mdot_in_re
+            for i in range(1, nx):
+                S_m = grain_S_m_factor[i] * grain_a[i] * (p_re[i]/1e6)**grain_n[i]
+                mdot_smooth_re[i] = mdot_smooth_re[i-1] + S_m * dx_arr[i]
+            
             results["real"] = {
                 "mach": s(M_re),
                 "pressure": s(p_re),
                 "pressure_total": s(P0_re),
                 "temperature": s(T_re),
                 "temperature_total": s(T0_re),
-                "mass_flow": s(mdot_f_re)
+                "mass_flow": s(mdot_smooth_re)
             }
             results["diagnostics"]["gas_model"] = "ideal + real (Van der Waals)"
 

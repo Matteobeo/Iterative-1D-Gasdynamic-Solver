@@ -8,7 +8,7 @@ const layoutDefaults = {
   paper_bgcolor: 'transparent',
   plot_bgcolor: 'transparent',
   font: { color: '#94a3b8', family: 'Inter' },
-  margin: { t: 40, r: 20, b: 40, l: 50 },
+  margin: { t: 60, r: 20, b: 40, l: 50 },
   xaxis: { 
     gridcolor: 'rgba(255,255,255,0.05)',
     zerolinecolor: 'rgba(255,255,255,0.1)',
@@ -36,6 +36,7 @@ export function ResultsDashboard({ results }) {
     yref: 'paper',
     line: { color: 'rgba(255,255,255,0.2)', width: 1, dash: 'dot' }
   }));
+
 
   const pressureData = [
     { x: d.x, y: d.pressure, type: 'scatter', mode: 'lines', name: 'Static P (Ideal)', line: { color: '#3b82f6', width: 2 } },
@@ -71,6 +72,32 @@ export function ResultsDashboard({ results }) {
   }
 
   const [isStacked, setIsStacked] = React.useState(false);
+
+  const labels = results.component_labels || [];
+  
+  // Derive labels with fallback if backend didn't provide them
+  const displayLabels = (labels && labels.length > 0) 
+    ? labels 
+    : boundaries.slice(0, -1).map((_, i) => `SEGMENT ${i+1}`);
+
+  const annotations = displayLabels.map((label, i) => {
+    const x0 = boundaries[i];
+    const x1 = boundaries[i+1];
+    if (x0 === undefined || x1 === undefined) return null;
+    return {
+      x: (x0 + x1) / 2,
+      y: 0.96,
+      xref: 'x',
+      yref: 'paper',
+      text: label.toUpperCase(),
+      showarrow: false,
+      font: { size: 10, color: '#94a3b8', weight: 'bold' },
+      xanchor: 'center',
+      yanchor: 'top'
+    };
+  }).filter(Boolean);
+
+  const totalLength = boundaries[boundaries.length - 1] || 1.0;
 
   return (
     <div className="results-panel animate-fade-in">
@@ -116,12 +143,13 @@ export function ResultsDashboard({ results }) {
           {!results.warnings?.length && <span className="status-badge success">✅ Solved Successfully</span>}
         </div>
       </div>
+
       <div className={`charts-container ${isStacked ? 'stacked' : ''}`}>
         <div className="chart-wrapper">
           <Plot 
             key={`mach-${isStacked}`}
             data={machData} 
-            layout={{ ...layoutDefaults, title: 'Mach Number [-]', shapes, yaxis: { ...layoutDefaults.yaxis, title: { text: 'Mach [-]', font: { size: 12 } } } }}
+            layout={{ ...layoutDefaults, title: 'Mach Number [-]', shapes, annotations, yaxis: { ...layoutDefaults.yaxis, title: { text: 'Mach [-]', font: { size: 12 } } } }}
             useResizeHandler={true} style={{ width: '100%', height: '100%' }} config={{ responsive: true }}
           />
         </div>
@@ -129,7 +157,7 @@ export function ResultsDashboard({ results }) {
           <Plot 
             key={`pressure-${isStacked}`}
             data={pressureData} 
-            layout={{ ...layoutDefaults, title: 'Pressure [Pa]', shapes, yaxis: { ...layoutDefaults.yaxis, title: { text: 'Pressure [Pa]', font: { size: 12 } }, type: 'log', exponentformat: 'e' } }}
+            layout={{ ...layoutDefaults, title: 'Pressure [Pa]', shapes, annotations, yaxis: { ...layoutDefaults.yaxis, title: { text: 'Pressure [Pa]', font: { size: 12 } }, type: 'log', exponentformat: 'e' } }}
             useResizeHandler={true} style={{ width: '100%', height: '100%' }} config={{ responsive: true }}
           />
         </div>
@@ -137,7 +165,7 @@ export function ResultsDashboard({ results }) {
           <Plot 
             key={`temp-${isStacked}`}
             data={tempData} 
-            layout={{ ...layoutDefaults, title: 'Temperature [K]', shapes, yaxis: { ...layoutDefaults.yaxis, title: { text: 'Temperature [K]', font: { size: 12 } } } }}
+            layout={{ ...layoutDefaults, title: 'Temperature [K]', shapes, annotations, yaxis: { ...layoutDefaults.yaxis, title: { text: 'Temperature [K]', font: { size: 12 } } } }}
             useResizeHandler={true} style={{ width: '100%', height: '100%' }} config={{ responsive: true }}
           />
         </div>
@@ -145,7 +173,7 @@ export function ResultsDashboard({ results }) {
           <Plot 
             key={`mass-${isStacked}`}
             data={massData} 
-            layout={{ ...layoutDefaults, title: 'Mass Flow [kg/s]', shapes, yaxis: { ...layoutDefaults.yaxis, title: { text: 'mdot [kg/s]', font: { size: 12 } } } }}
+            layout={{ ...layoutDefaults, title: 'Mass Flow [kg/s]', shapes, annotations, yaxis: { ...layoutDefaults.yaxis, title: { text: 'mdot [kg/s]', font: { size: 12 } } } }}
             useResizeHandler={true} style={{ width: '100%', height: '100%' }} config={{ responsive: true }}
           />
         </div>
