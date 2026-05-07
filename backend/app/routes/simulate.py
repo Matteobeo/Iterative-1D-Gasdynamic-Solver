@@ -1,8 +1,10 @@
 from fastapi import APIRouter, HTTPException
 from app.models import SimulationRequest, SimulationResponse
 from app.solver.gas import GasProperties
-from app.solver.iterative_solver import solve_full_pipeline, generate_plot_data
+from app.solver.hybrid_solver import solve_full_pipeline as solve_hybrid, generate_plot_data as plot_hybrid
 import numpy as np
+import hashlib
+import json
 
 router = APIRouter()
 
@@ -35,7 +37,8 @@ def compute_summary(request: SimulationRequest, data: dict) -> dict:
             A_e = gas.area_from_diameter(comp.params.get("d_h", 1.0))
             break
         elif comp.type == "solid_grain":
-            continue  # Grain has no geometric area, skip
+            A_e = gas.area_from_diameter(comp.params.get("d_h", 0.1))
+            break
             
     thrust = mdot * V_e + (P_e - P_amb) * A_e
 
@@ -70,26 +73,13 @@ def compute_summary(request: SimulationRequest, data: dict) -> dict:
     P0_throat_cfd = data["pressure_total"][t_idx]
     
     # 2. Calcola il limite di Choking (portata) basandosi sulle perdite fino alla gola
-    # Questo valore è fisso e non dipende dalla posizione dell'urto a valle.
-    try:
-        from app.solver.iterative_solver import find_choked_inlet_mach, evaluate_pipeline
-        M_in_choked = find_choked_inlet_mach(request.components, P0, request.T0, gas)
-        res_choked = evaluate_pipeline(
-            request.components, M_in_choked, P0, request.T0, gas,
-            force_supersonic_divergent=False
-        )
-        P_amb_choke_ideal = res_choked[-1]["P_out"]
-    except Exception:
-        P_amb_choke_ideal = P0 * (2 / (gamma + 1)) ** (gamma / (gamma - 1))
+    # Use direct isentropic calculation with CFD throat pressure correction
+    P_amb_choke_ideal = P0 * (2 / (gamma + 1)) ** (gamma / (gamma - 1))
 
-    if request.solver_type == "general":
-        choking_key = "CFD Choking Threshold"
-        # Usiamo P0 alla gola come riferimento per le perdite subsoniche
-        correction_factor = P0_throat_cfd / P0 if P0 > 0 else 1.0
-        P_amb_choke = P_amb_choke_ideal * correction_factor
-    else:
-        choking_key = "Choking Threshold"
-        P_amb_choke = P_amb_choke_ideal
+    choking_key = "Choking Threshold"
+    # Usiamo P0 alla gola come riferimento per le perdite subsoniche
+    correction_factor = P0_throat_cfd / P0 if P0 > 0 else 1.0
+    P_amb_choke = P_amb_choke_ideal * correction_factor
 
     result = {
         "Thrust": {"value": thrust, "unit": "N"},
@@ -149,12 +139,11 @@ def compute_summary(request: SimulationRequest, data: dict) -> dict:
 
 
 
-
 @router.post("/simulate", response_model=SimulationResponse)
 async def simulate(request: SimulationRequest):
     """
     Receive duct configuration and boundary conditions,
-    run the gas dynamics solver, and return results.
+    run the CFD gas dynamics solver, and return results.
     """
     try:
         if request.is_real:
@@ -165,53 +154,24 @@ async def simulate(request: SimulationRequest):
         
         if not request.components:
             raise ValueError("No components provided.")
-            
-        import json
-        with open("last_request.json", "w") as f:
-            f.write(request.json())
-            
-            
-        if request.solver_type == "general":
-            from app.solver.hybrid_solver import solve_full_pipeline as solve_hybrid, generate_plot_data as plot_hybrid
-            import hashlib, json
-            
-            # Generate a unique hash based on request data to avoid stale caching
-            req_data = {
-                "P0": request.P0, "T0": request.T0, "P_amb": request.P_amb,
-                "comps": [{"type": c.type, "params": c.params} for c in request.components]
-            }
-            request_hash = hashlib.md5(json.dumps(req_data, sort_keys=True).encode()).hexdigest()
-            
-            results, warnings, final_comps = solve_hybrid(
-                components=request.components,
-                P0_in=request.P0,
-                T0_in=request.T0,
-                P_amb=request.P_amb,
-                gas=gas,
-                request_hash=request_hash
-            )
-            
-            data, boundaries, labels = plot_hybrid(final_comps, results, gas, request_hash=request_hash)
-            summary = compute_summary(request, data)
-            
-            return SimulationResponse(
-                success=True,
-                warnings=["Advanced General Solver (BETA) used."] + warnings,
-                data=data,
-                component_boundaries=boundaries,
-                component_labels=labels,
-                summary=summary
-            )
-
-        results, warnings, split_comps = solve_full_pipeline(
+        
+        # Generate a unique hash based on request data to avoid stale caching
+        req_data = {
+            "P0": request.P0, "T0": request.T0, "P_amb": request.P_amb,
+            "comps": [{"type": c.type, "params": c.params} for c in request.components]
+        }
+        request_hash = hashlib.md5(json.dumps(req_data, sort_keys=True).encode()).hexdigest()
+        
+        results, warnings, final_comps = solve_hybrid(
             components=request.components,
             P0_in=request.P0,
             T0_in=request.T0,
             P_amb=request.P_amb,
-            gas=gas
+            gas=gas,
+            request_hash=request_hash
         )
         
-        data, boundaries, labels = generate_plot_data(split_comps, results, gas)
+        data, boundaries, labels = plot_hybrid(final_comps, results, gas, request_hash=request_hash)
         summary = compute_summary(request, data)
         
         return SimulationResponse(

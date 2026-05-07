@@ -1,0 +1,102 @@
+% Gasflash Equations Report
+% Generated on 2026-05-07
+% This report summarises the governing equations implemented in the Gasflash CFD solver.
+
+\documentclass[11pt,a4paper]{article}
+\usepackage{amsmath,amssymb}
+\usepackage{physics}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{geometry}
+\geometry{margin=1in}
+\title{Gasflash – Governing Equations Report}
+\author{Gasflash Development Team}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\section{Overview}
+The Gasflash application solves 1‑D compressible flow problems using a finite‑volume Roe scheme.  The solver can handle a sequence of components (nozzles, ducts, mass‑addition sources, etc.) and includes the following physical models:
+
+\begin{itemize}
+  \item Isentropic flow relations
+  \item Fanno flow (friction)
+  \item Rayleigh flow (heat addition)
+  \item Normal shock relations
+  \item Mass‑addition (solid grain) with ``only\_mass\_addition`` mode
+  \item Real‑gas equation of state (optional)
+\end{itemize}
+
+All models are expressed in terms of the primitive variables \(P, T, \rho, M\) and are evaluated at cell interfaces.
+
+\section{Isentropic Relations}
+For an ideal gas with ratio of specific heats \(\gamma\):
+\begin{align}
+  \frac{P}{P_0} &= \left(1 + \frac{\gamma-1}{2}M^2\right)^{-\frac{\gamma}{\gamma-1}}
+  \\
+  \frac{T}{T_0} &= \left(1 + \frac{\gamma-1}{2}M^2\right)^{-1}
+  \\
+  \frac{\rho}{\rho_0} &= \left(1 + \frac{\gamma-1}{2}M^2\right)^{-\frac{1}{\gamma-1}}
+\end{align}
+The critical (choked) Mach number \(M=1\) gives the well‑known pressure ratio:
+\begin{equation}
+  \left(\frac{P_*}{P_0}\right) = \left(\frac{2}{\gamma+1}\right)^{\frac{\gamma}{\gamma-1}}
+\end{equation}
+This expression is used in \texttt{compute\_summary} to estimate the choking threshold.
+
+\section{Fanno Flow (Friction)}
+Fanno flow accounts for a constant‑area duct with wall friction coefficient \(f\).  The governing relation between Mach number and nondimensional length \(\theta = \frac{4fL}{D}\) is:
+\begin{equation}
+  \frac{1-M^2}{\gamma M^2} + \frac{\gamma+1}{2\gamma}\ln\!\left[\frac{(\gamma+1)M^2}{2+(\gamma-1)M^2}\right] = \theta + C
+\end{equation}
+where \(C\) is determined from the inlet conditions.  The solver iteratively solves this equation for \(M\) at each cell.
+
+\section{Rayleigh Flow (Heat Addition)}
+For a constant‑area duct with heat addition \(q\) per unit mass, the Rayleigh relations are:
+\begin{align}
+  \frac{T}{T_0} &= \frac{(\gamma+1)M^2}{(\gamma-1)M^2+2} \cdot \frac{2+(\gamma-1)M^2}{(\gamma+1)M^2}
+  \\
+  \frac{P}{P_0} &= \left[\frac{(\gamma+1)M^2}{(\gamma-1)M^2+2}\right]^{\frac{\gamma}{\gamma-1}} \cdot \left[\frac{2+(\gamma-1)M^2}{(\gamma+1)M^2}\right]^{\frac{1}{\gamma-1}}
+\end{align}
+The solver uses these formulas when the component type is ``rayleigh`` and the parameter ``q`` is supplied.
+
+\section{Normal Shock Relations}
+Across a normal shock the downstream Mach number \(M_2\) is:
+\begin{equation}
+  M_2^2 = \frac{1 + \frac{\gamma-1}{2}M_1^2}{\gamma M_1^2 - \frac{\gamma-1}{2}}
+\end{equation}
+Pressure and temperature jumps are:
+\begin{align}
+  \frac{P_2}{P_1} &= 1 + \frac{2\gamma}{\gamma+1}(M_1^2-1)
+  \\
+  \frac{T_2}{T_1} &= \frac{[2\gamma M_1^2-(\gamma-1)]\,[ (\gamma-1)M_1^2+2]}{(\gamma+1)^2M_1^2}
+\end{align}
+These are called by \texttt{evaluate\_pipeline} when a shock is detected.
+
+\section{Mass‑Addition (Solid Grain)}
+The solid‑grain model follows Vieille’s law for burn rate:
+\begin{equation}
+  r_b = a\,P^n
+\end{equation}
+with \(a\) and \(n\) taken from the component parameters.  The code now converts pressure from Pa to MPa before applying the law (see \texttt{influence\_solver.py}).  When ``only_mass_addition=True`` the solver skips the aerodynamic coupling and only adds mass to the flow.
+
+\section{Real‑Gas EOS (optional)}
+When ``request.is_real`` is true, the ``RealGasProperties`` class uses the Peng‑Robinson EoS:
+\begin{equation}
+  P = \frac{RT}{v-b} - \frac{a}{v(v+b)+b(v-b)}
+\end{equation}
+where \(a\) and \(b\) are temperature‑dependent parameters.
+
+\section{Numerical Scheme}
+The core solver is a first‑order Roe approximate Riemann solver.  For each interface the flux \(\mathbf{F}\) is computed as:
+\begin{equation}
+  \mathbf{F}_{i+1/2}=\frac{1}{2}\big[\mathbf{F}(\mathbf{U}_L)+\mathbf{F}(\mathbf{U}_R)\big] - \frac{1}{2}\,\mathbf{R}\,|\Lambda|\,\mathbf{R}^{-1}(\mathbf{U}_R-\mathbf{U}_L)
+\end{equation}
+with \(\mathbf{U}\) the conserved vector, \(\mathbf{R}\) the eigen‑vector matrix and \(\Lambda\) the diagonal matrix of eigenvalues.  Time integration uses an explicit Euler step with CFL control.
+
+\section{Summary of Changes}
+The recent code cleanup removed the legacy analytical (iterative) solver and unified the pipeline under the CFD (hybrid) solver.  All equations above are now evaluated exclusively by the CFD path.
+
+\end{document}

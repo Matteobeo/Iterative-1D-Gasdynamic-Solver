@@ -2,7 +2,6 @@ import React, { useRef, useEffect } from 'react';
 
 export function FlowVisualization({ components, results }) {
   const canvasRef = useRef(null);
-  // Spostato al livello superiore per rispettare le regole degli Hooks
   const particles = useRef([]);
 
   useEffect(() => {
@@ -10,31 +9,55 @@ export function FlowVisualization({ components, results }) {
 
     const { x, mach, pressure, temperature } = results.data;
     
-    // GUARDIA: previene crash e calcoli NaN se i dati sono incompleti o vuoti
     if (!x || x.length === 0 || !pressure || pressure.length === 0 || !temperature) return;
+    if (!components || components.length === 0) return;
 
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
     let animationFrameId;
 
-    // Assicura che totalL non sia mai 0 o undefined per evitare divisioni per zero
-    const totalL = (x[x.length - 1] > 0) ? x[x.length - 1] : 1;
+    // ========== CRITICAL FIX ==========
+    // Calculate totalL from COMPONENTS GEOMETRY (not from solver data).
+    // This ensures the duct shape always matches what the user built.
+    const geoTotalL = components.reduce((sum, c) => sum + (c.params.length || 0), 0);
+    const totalL = geoTotalL > 0 ? geoTotalL : 1;
+    
+    // The solver's x-axis range (for interpolating flow data like Mach, P, T)
+    const dataTotalL = (x[x.length - 1] > 0) ? x[x.length - 1] : 1;
+    // ===================================
+
     const maxP = Math.max(...pressure);
     const minP = Math.min(...pressure);
     const maxT = Math.max(...temperature);
     const minT = Math.min(...temperature);
 
+    // Pre-compute per-component geometry with proper inlet/outlet tracking
     let maxRadius = 0.01;
-    components.forEach(c => {
-      const r_in = (c.params.d_in || c.params.d_h || 0.1) / 2;
-      const r_out = (c.params.d_out || c.params.d_h || 0.1) / 2;
+    const compGeo = [];
+    let runningX = 0;
+    for (let i = 0; i < components.length; i++) {
+      const c = components[i];
+      const L = c.params.length || 0;
+      let r_in, r_out;
+
+      if (c.type === 'convergent' || c.type === 'divergent') {
+        r_in = (c.params.d_in || 0.1) / 2;
+        r_out = (c.params.d_out || 0.1) / 2;
+      } else {
+        // Fanno, Rayleigh, Solid Grain: constant area duct using d_h
+        const dh = c.params.d_h || 0.1;
+        r_in = dh / 2;
+        r_out = dh / 2;
+      }
+
       maxRadius = Math.max(maxRadius, r_in, r_out);
-    });
+      compGeo.push({ xStart: runningX, L, r_in, r_out, type: c.type });
+      runningX += L;
+    }
 
     const numParticles = 400;
     
-    // Reset delle particelle se la lunghezza non coincide o la struttura è vecchia
-    if (!particles.current || particles.current.length !== numParticles || !particles.current[0].history) {
+    if (!particles.current || particles.current.length !== numParticles || !particles.current[0]?.history) {
       particles.current = [];
       for (let i = 0; i < numParticles; i++) {
         particles.current.push({
@@ -45,8 +68,13 @@ export function FlowVisualization({ components, results }) {
       }
     }
 
+    // Map a geometric position to the solver's data coordinate for interpolation
+    const geoToData = (geoX) => {
+      if (dataTotalL === totalL) return geoX;
+      return (geoX / totalL) * dataTotalL;
+    };
+
     const interpolate = (val, xArr, yArr) => {
-      // Controllo aggiuntivo per yArr mancante o vuoto
       if (!xArr || xArr.length === 0 || !yArr || yArr.length === 0) return 0;
       if (isNaN(val)) return yArr[0] || 0;
       if (val <= xArr[0]) return yArr[0];
@@ -58,17 +86,16 @@ export function FlowVisualization({ components, results }) {
       return isNaN(res) ? 0 : res;
     };
 
-    const getDuctRadius = (val) => {
-      let currentX = 0;
-      for (const comp of components) {
-        const L = comp.params.length || 0;
-        if (val >= currentX && val <= currentX + L) {
-          const d_in = comp.params.d_in || comp.params.d_h || 0.1;
-          const d_out = comp.params.d_out || comp.params.d_h || 0.1;
-          const frac = L > 0 ? (val - currentX) / L : 0;
-          return (d_in + (d_out - d_in) * frac) / 2;
+    // Gets the duct radius at a geometric position using pre-computed component geometry
+    const getDuctRadius = (geoX) => {
+      for (const cg of compGeo) {
+        if (geoX >= cg.xStart && geoX <= cg.xStart + cg.L) {
+          const frac = cg.L > 0 ? (geoX - cg.xStart) / cg.L : 0;
+          return cg.r_in + (cg.r_out - cg.r_in) * frac;
         }
-        currentX += L;
+      }
+      if (compGeo.length > 0) {
+        return compGeo[compGeo.length - 1].r_out;
       }
       return maxRadius;
     };
@@ -78,18 +105,17 @@ export function FlowVisualization({ components, results }) {
       
       const t = Math.max(0, Math.min(1, (temp - minT) / (maxT - minT + 1e-6)));
       
-      // Multi-stop gradient: Blue -> Cyan -> Green -> Yellow -> Red
       let r, g, b;
-      if (t < 0.25) { // Blue to Cyan
+      if (t < 0.25) {
         const f = t / 0.25;
         r = 30; g = Math.round(50 + f * 150); b = 255;
-      } else if (t < 0.5) { // Cyan to Green
+      } else if (t < 0.5) {
         const f = (t - 0.25) / 0.25;
         r = Math.round(30 + f * 70); g = 200; b = Math.round(255 - f * 200);
-      } else if (t < 0.75) { // Green to Yellow
+      } else if (t < 0.75) {
         const f = (t - 0.5) / 0.25;
         r = Math.round(100 + f * 155); g = Math.round(200 + f * 55); b = 55;
-      } else { // Yellow to Red
+      } else {
         const f = (t - 0.75) / 0.25;
         r = 255; g = Math.round(255 - f * 200); b = Math.round(55 - f * 20);
       }
@@ -97,12 +123,12 @@ export function FlowVisualization({ components, results }) {
       return `rgba(${r}, ${g}, ${b}, ${alpha})`;
     };
 
-    // Detect shock locations
+    // Detect shock locations (in solver data coords, then map to geo)
     const shocks = [];
     for (let i = 0; i < mach.length - 1; i++) {
-      // Look for abrupt jump from supersonic to subsonic
       if (mach[i] > 1.01 && mach[i+1] < 0.99) {
-        shocks.push({ x: x[i], m1: mach[i], m2: mach[i+1] });
+        const geoShockX = (x[i] / dataTotalL) * totalL;
+        shocks.push({ x: geoShockX, m1: mach[i], m2: mach[i+1] });
       }
     }
 
@@ -132,15 +158,16 @@ export function FlowVisualization({ components, results }) {
       // 1. Draw Duct Background with Flow Gradient
       const steps = 120;
       for (let i = 0; i < steps; i++) {
-        const x1 = (i / steps) * totalL;
-        const x2 = ((i + 1) / steps) * totalL;
-        const t_local = interpolate(x1, x, temperature);
-        const m = interpolate(x1, x, mach);
-        const r1 = getDuctRadius(x1);
-        const r2 = getDuctRadius(x2);
+        const gx1 = (i / steps) * totalL;
+        const gx2 = ((i + 1) / steps) * totalL;
+        const dx1 = geoToData(gx1);
+        const t_local = interpolate(dx1, x, temperature);
+        const m = interpolate(dx1, x, mach);
+        const r1 = getDuctRadius(gx1);
+        const r2 = getDuctRadius(gx2);
 
-        const px1 = marginX + (x1 / totalL) * drawW;
-        const px2 = marginX + (x2 / totalL) * drawW;
+        const px1 = marginX + (i / steps) * drawW;
+        const px2 = marginX + ((i + 1) / steps) * drawW;
         const py1_t = h / 2 - r1 * yScale;
         const py1_b = h / 2 + r1 * yScale;
         const py2_t = h / 2 - r2 * yScale;
@@ -152,7 +179,6 @@ export function FlowVisualization({ components, results }) {
         ctx.lineTo(px2, py2_b); ctx.lineTo(px1, py1_b);
         ctx.fill();
 
-        // Mach lines in supersonic flow
         if (m > 1.1 && i % 8 === 0) {
           ctx.strokeStyle = 'rgba(255,255,255,0.08)';
           ctx.lineWidth = 1;
@@ -169,7 +195,6 @@ export function FlowVisualization({ components, results }) {
         const yTop = h / 2 - r * yScale;
         const yBottom = h / 2 + r * yScale;
 
-        // Glowing line
         const grad = ctx.createLinearGradient(sx - 5, 0, sx + 5, 0);
         grad.addColorStop(0, 'rgba(255, 255, 255, 0)');
         grad.addColorStop(0.5, 'rgba(255, 255, 255, 0.8)');
@@ -178,7 +203,6 @@ export function FlowVisualization({ components, results }) {
         ctx.fillStyle = grad;
         ctx.fillRect(sx - 3, yTop, 6, yBottom - yTop);
 
-        // Core sharp line
         ctx.strokeStyle = '#fff';
         ctx.lineWidth = 2;
         ctx.setLineDash([5, 3]);
@@ -188,7 +212,6 @@ export function FlowVisualization({ components, results }) {
         ctx.stroke();
         ctx.setLineDash([]);
 
-        // Label
         ctx.fillStyle = '#fff';
         ctx.font = 'bold 10px Inter, sans-serif';
         ctx.textAlign = 'center';
@@ -203,26 +226,24 @@ export function FlowVisualization({ components, results }) {
 
       // 3. Draw Particles
       particles.current.forEach(p => {
-        const t_local = interpolate(p.x, x, temperature);
-        const m = interpolate(p.x, x, mach);
-        const p_local = interpolate(p.x, x, pressure);
+        const dx = geoToData(p.x);
+        const t_local = interpolate(dx, x, temperature);
+        const m = interpolate(dx, x, mach);
+        const p_local = interpolate(dx, x, pressure);
         const r = getDuctRadius(p.x);
 
-        // Shock interaction: dramatic jump in properties
         let inShock = false;
         shocks.forEach(s => {
           if (Math.abs(p.x - s.x) < 0.01) {
             inShock = true;
-            p.yOffset += (Math.random() - 0.5) * 0.15; // Increased turbulence
+            p.yOffset += (Math.random() - 0.5) * 0.15;
           }
         });
 
-        // Dynamic velocity based on Mach number - CLAMPED to avoid visual skipping
-        const maxStep = totalL * 0.02; // Max 2% of duct length per frame
+        const maxStep = totalL * 0.02;
         const velocity = Math.min(maxStep, 0.001 + (m * 0.008));
         p.x += velocity;
         
-        // Add random wobble to avoid perfectly horizontal banding
         p.yOffset += (Math.random() - 0.5) * 0.03;
         p.yOffset = Math.max(-0.95, Math.min(0.95, p.yOffset));
 
@@ -232,14 +253,12 @@ export function FlowVisualization({ components, results }) {
           p.yOffset = (Math.random() - 0.5) * 1.8;
         }
 
-        // Density representation: higher pressure = more opaque and slightly larger
         const p_norm = (p_local - minP) / (maxP - minP + 1e-6);
         const alpha = Math.min(1.0, 0.3 + p_norm * 0.7);
         
         const px = marginX + (p.x / totalL) * drawW;
         const py = h / 2 + p.yOffset * r * yScale;
 
-        // Trail effect
         p.history.push({ x: px, y: py });
         if (p.history.length > 4) p.history.shift();
 
@@ -254,14 +273,13 @@ export function FlowVisualization({ components, results }) {
           ctx.stroke();
         }
 
-        // Particle core
         ctx.fillStyle = inShock ? '#fff' : `rgba(255, 255, 255, ${alpha})`;
         if (inShock) {
             ctx.shadowBlur = 10;
             ctx.shadowColor = '#fff';
         }
         ctx.beginPath();
-        const size = (m > 1) ? 1 : (1.5 + p_norm); // Subsonic particles (compressed) look slightly larger
+        const size = (m > 1) ? 1 : (1.5 + p_norm);
         ctx.arc(px, py, size, 0, Math.PI * 2);
         ctx.fill();
         ctx.shadowBlur = 0;
@@ -271,9 +289,9 @@ export function FlowVisualization({ components, results }) {
       const drawWall = (isBottom) => {
         ctx.beginPath();
         for (let i = 0; i <= steps; i++) {
-          const xv = (i/steps) * totalL;
-          const rv = getDuctRadius(xv);
-          const px = marginX + (xv/totalL) * drawW;
+          const gx = (i/steps) * totalL;
+          const rv = getDuctRadius(gx);
+          const px = marginX + (i/steps) * drawW;
           const py = h / 2 + (isBottom ? 1 : -1) * (rv * yScale);
           if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
         }
@@ -283,9 +301,9 @@ export function FlowVisualization({ components, results }) {
         
         ctx.beginPath();
         for (let i = 0; i <= steps; i++) {
-          const xv = (i/steps) * totalL;
-          const rv = getDuctRadius(xv);
-          const px = marginX + (xv/totalL) * drawW;
+          const gx = (i/steps) * totalL;
+          const rv = getDuctRadius(gx);
+          const px = marginX + (i/steps) * drawW;
           const py = h / 2 + (isBottom ? 1 : -1) * (rv * yScale - (isBottom ? 2 : -2));
           if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
         }
@@ -298,42 +316,38 @@ export function FlowVisualization({ components, results }) {
       drawWall(true);
 
       // 5. Draw Component Divisions, Labels & Special Markers
-      let currentDivX = 0;
       ctx.setLineDash([4, 4]);
-      components.forEach((comp, idx) => {
-        const L = comp.params.length || 0;
-        
-          // --- Solid Grain: special inline marker ---
-          if (comp.type === 'solid_grain' && L > 0) {
-            const midX = currentDivX + L / 2;
-            const pxMid = marginX + (midX / totalL) * drawW;
-            const pxStart = marginX + (currentDivX / totalL) * drawW;
-            const pxEnd = marginX + ((currentDivX + L) / totalL) * drawW;
-            const r = maxRadius * yScale;
+      for (let idx = 0; idx < compGeo.length; idx++) {
+        const cg = compGeo[idx];
+        const comp = components[idx];
+        const L = cg.L;
 
-            // FIX: Ensure coordinates are finite to prevent Canvas crash
-            if (isFinite(pxStart) && isFinite(pxEnd) && isFinite(pxEnd - pxStart) && (pxEnd - pxStart) !== 0) {
-                // Glow halo spanning the length (use 'lighter' blending to avoid dimming)
-                ctx.globalCompositeOperation = 'screen';
-                const grainGrad = ctx.createLinearGradient(pxStart, 0, pxEnd, 0);
-                grainGrad.addColorStop(0, 'rgba(255, 109, 0, 0)');
-                grainGrad.addColorStop(0.5, 'rgba(255, 109, 0, 0.15)');
-                grainGrad.addColorStop(1, 'rgba(255, 109, 0, 0)');
-                ctx.fillStyle = grainGrad;
-                ctx.fillRect(pxStart, h / 2 - r, pxEnd - pxStart, r * 2);
-                ctx.globalCompositeOperation = 'source-over';
-            }
+        if (comp.type === 'solid_grain' && L > 0) {
+          const midX = cg.xStart + L / 2;
+          const pxMid = marginX + (midX / totalL) * drawW;
+          const pxStart = marginX + (cg.xStart / totalL) * drawW;
+          const pxEnd = marginX + ((cg.xStart + L) / totalL) * drawW;
+          const r = maxRadius * yScale;
 
-          // Label
+          if (isFinite(pxStart) && isFinite(pxEnd) && isFinite(pxEnd - pxStart) && (pxEnd - pxStart) !== 0) {
+              ctx.globalCompositeOperation = 'screen';
+              const grainGrad = ctx.createLinearGradient(pxStart, 0, pxEnd, 0);
+              grainGrad.addColorStop(0, 'rgba(255, 109, 0, 0)');
+              grainGrad.addColorStop(0.5, 'rgba(255, 109, 0, 0.15)');
+              grainGrad.addColorStop(1, 'rgba(255, 109, 0, 0)');
+              ctx.fillStyle = grainGrad;
+              ctx.fillRect(pxStart, h / 2 - r, pxEnd - pxStart, r * 2);
+              ctx.globalCompositeOperation = 'source-over';
+          }
+
           ctx.fillStyle = '#ff6d00';
           ctx.font = 'bold 9px Inter, sans-serif';
           ctx.textAlign = 'center';
           ctx.shadowBlur = 8;
           ctx.shadowColor = '#ff6d00';
-          ctx.fillText('🔥 SOLID GRAIN', pxMid, marginY - 10);
+          ctx.fillText('\uD83D\uDD25 SOLID GRAIN', pxMid, marginY - 10);
           ctx.shadowBlur = 0;
 
-          // Burn rate annotation
           const rho_b = comp.params.rho_b || 1800;
           const A_b = comp.params.A_b || 0.01;
           const n = comp.params.n || 0.4;
@@ -342,17 +356,15 @@ export function FlowVisualization({ components, results }) {
           const mdot = A_b * rho_b * a_c * Math.pow(Math.max(P_ref, 1), n);
           ctx.fillStyle = 'rgba(255, 109, 0, 0.8)';
           ctx.font = '8px Inter, sans-serif';
-          ctx.fillText(`ṁ ≈ ${mdot.toExponential(2)} kg/s`, pxMid, h - marginY + 12);
+          ctx.fillText(`\u1E41 \u2248 ${mdot.toExponential(2)} kg/s`, pxMid, h - marginY + 12);
         }
 
         if (L > 0 && comp.type !== 'solid_grain') {
-          const startX = currentDivX;
-          const midX = currentDivX + L / 2;
+          const midX = cg.xStart + L / 2;
           
-          const pxStart = marginX + (startX / totalL) * drawW;
+          const pxStart = marginX + (cg.xStart / totalL) * drawW;
           const pxMid = marginX + (midX / totalL) * drawW;
           
-          // Draw dividing line at the start of component (skip first)
           if (idx > 0) {
             ctx.beginPath();
             ctx.moveTo(pxStart, marginY / 2);
@@ -362,16 +374,19 @@ export function FlowVisualization({ components, results }) {
             ctx.stroke();
           }
 
-          // Draw label
-          ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+          let labelColor = 'rgba(255, 255, 255, 0.5)';
+          if (comp.type === 'fanno') labelColor = 'rgba(255, 165, 0, 0.7)';
+          else if (comp.type === 'rayleigh') labelColor = 'rgba(255, 80, 80, 0.7)';
+          else if (comp.type === 'convergent') labelColor = 'rgba(100, 200, 100, 0.7)';
+          else if (comp.type === 'divergent') labelColor = 'rgba(100, 150, 255, 0.7)';
+
+          ctx.fillStyle = labelColor;
           ctx.font = '600 9px Inter, sans-serif';
           ctx.textAlign = 'center';
           const labelText = comp.type.toUpperCase().replace(/_/g, ' ');
           ctx.fillText(labelText, pxMid, marginY - 10);
         } else if (L > 0 && idx > 0) {
-          // Still draw dividing line for solid_grain if it's not the first component
-          const startX = currentDivX;
-          const pxStart = marginX + (startX / totalL) * drawW;
+          const pxStart = marginX + (cg.xStart / totalL) * drawW;
           ctx.beginPath();
           ctx.moveTo(pxStart, marginY / 2);
           ctx.lineTo(pxStart, h - marginY / 2);
@@ -379,10 +394,7 @@ export function FlowVisualization({ components, results }) {
           ctx.lineWidth = 1;
           ctx.stroke();
         }
-        
-        currentDivX += L;
-
-      });
+      }
       ctx.setLineDash([]);
 
       animationFrameId = requestAnimationFrame(render);

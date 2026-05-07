@@ -183,7 +183,8 @@ def evaluate_component(
 
         # Use upstream total pressure as reference for burn rate
         P_ref = P0_in * pressure_ratio(M_in, gas.gamma)
-        grain_mdot = A_b * rho_b * a_coeff * (P_ref ** n_exp)
+        # Convert to MPa to match the CFD solver's Vieille convention
+        grain_mdot = A_b * rho_b * a_coeff * ((P_ref / 1e6) ** n_exp)
 
 
         out.update({

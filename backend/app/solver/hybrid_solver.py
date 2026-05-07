@@ -199,7 +199,10 @@ def solve_full_pipeline(
         warnings.append("Inlet and outlet pressures are equal - no flow.")
         return _zero_flow_results(components, P0_in, T0_in, gas), warnings, components
 
-    # 2. Run CFD core
+    # 2. Run CFD core (Roe/MUSCL solver)
+    # The GeneralSolver1D builds the governing equations dynamically from the
+    # component pipeline: area profiles for nozzles, friction for Fanno,
+    # heat source for Rayleigh, mass source for solid grain.
     solver = GeneralSolver1D(gas, nx=nx)
     try:
         cfd_data = solver.solve(
@@ -213,6 +216,7 @@ def solve_full_pipeline(
     except Exception as e:
         warnings.append(f"CFD solver failure: {str(e)}. Returning stagnant fallback.")
         return _zero_flow_results(components, P0_in, T0_in, gas), warnings, components
+
 
     # 3. Map CFD field back into per-component summaries
     results = _build_component_results(components, cfd_data, gas)
