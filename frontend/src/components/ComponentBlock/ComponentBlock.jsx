@@ -114,7 +114,7 @@ export function ComponentBlock({ id, component, index, onUpdate, onRemove }) {
                 step="any"
                 className="input-field" 
                 value={val}
-                onChange={(e) => handleParamChange(key, e.target.value)}
+                onChange={(e) => handleParamChange(key, parseFloat(e.target.value) || 0)}
                 disabled={isDisabled}
               />
             </div>

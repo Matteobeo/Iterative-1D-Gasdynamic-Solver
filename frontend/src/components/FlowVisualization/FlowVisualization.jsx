@@ -19,7 +19,7 @@ export function FlowVisualization({ components, results }) {
     // ========== CRITICAL FIX ==========
     // Calculate totalL from COMPONENTS GEOMETRY (not from solver data).
     // This ensures the duct shape always matches what the user built.
-    const geoTotalL = components.reduce((sum, c) => sum + (c.params.length || 0), 0);
+    const geoTotalL = components.reduce((sum, c) => sum + (parseFloat(c.params.length) || 0), 0);
     const totalL = geoTotalL > 0 ? geoTotalL : 1;
     
     // The solver's x-axis range (for interpolating flow data like Mach, P, T)
@@ -37,15 +37,15 @@ export function FlowVisualization({ components, results }) {
     let runningX = 0;
     for (let i = 0; i < components.length; i++) {
       const c = components[i];
-      const L = c.params.length || 0;
+      const L = parseFloat(c.params.length) || 0;
       let r_in, r_out;
 
       if (c.type === 'convergent' || c.type === 'divergent') {
-        r_in = (c.params.d_in || 0.1) / 2;
-        r_out = (c.params.d_out || 0.1) / 2;
+        r_in = (parseFloat(c.params.d_in) || 0.1) / 2;
+        r_out = (parseFloat(c.params.d_out) || 0.1) / 2;
       } else {
         // Fanno, Rayleigh, Solid Grain: constant area duct using d_h
-        const dh = c.params.d_h || 0.1;
+        const dh = parseFloat(c.params.d_h) || 0.1;
         r_in = dh / 2;
         r_out = dh / 2;
       }
@@ -407,6 +407,10 @@ export function FlowVisualization({ components, results }) {
     };
   }, [results, components]);
 
+  const temperatureData = results?.data?.temperature || [];
+  const minT_display = temperatureData.length > 0 ? Math.min(...temperatureData) : 0;
+  const maxT_display = temperatureData.length > 0 ? Math.max(...temperatureData) : 0;
+
   return (
     <div className="glass-card animate-fade-in" style={{ marginTop: '2rem', overflow: 'hidden', border: '1px solid rgba(255,255,255,0.15)' }}>
       <div style={{ padding: '0.75rem 1.25rem', background: 'rgba(255,255,255,0.03)', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -414,9 +418,11 @@ export function FlowVisualization({ components, results }) {
           🌊 Dynamic Flow Simulation
         </span>
         <div style={{ display: 'flex', gap: '1rem', fontSize: '0.7rem', color: 'var(--text-secondary)' }}>
-          <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <div style={{ width: 80, height: 8, borderRadius: 4, background: 'linear-gradient(90deg, #1e32ff, #1ec8ff, #64c837, #ffff37, #ff3723)' }}></div>
-            Temperature (Cold → Hot)
+          <span style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+            <span style={{ color: 'rgba(59, 130, 246, 0.9)', fontWeight: 600 }}>{Math.round(minT_display)} K</span>
+            <div style={{ width: 100, height: 8, borderRadius: 4, background: 'linear-gradient(90deg, #1e32ff, #1ec8ff, #64c837, #ffff37, #ff3723)' }}></div>
+            <span style={{ color: 'rgba(248, 113, 113, 0.9)', fontWeight: 600 }}>{Math.round(maxT_display)} K</span>
+            <span style={{ opacity: 0.7, marginLeft: '0.2rem' }}>Temperature</span>
           </span>
         </div>
       </div>
